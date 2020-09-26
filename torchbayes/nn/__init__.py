@@ -1,5 +1,6 @@
 from .BayesParameter import *
 
 __all__ = [
-    'BayesParameter'
+    'BayesParameter',
+    'ComplexityCost'
 ]
