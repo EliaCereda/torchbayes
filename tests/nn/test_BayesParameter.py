@@ -15,7 +15,7 @@ def test_parameters():
     prior = Normal(loc=0.0, scale=1.0)
     posterior = Normal(loc=1.0, scale=1.0)
 
-    bp1 = BayesParameter(prior, posterior)
+    bp1 = BayesParameter((), prior, posterior)
 
     buffers1 = list(bp1.buffers())
     params1 = list(bp1.parameters())
@@ -26,7 +26,7 @@ def test_parameters():
     assert len(params1) == 2
     assert all_identical(params1, [posterior.loc, posterior.scale])
 
-    bp2 = BayesParameter(prior, posterior)
+    bp2 = BayesParameter((), prior, posterior)
 
     params2 = list(bp2.parameters())
 
@@ -35,6 +35,7 @@ def test_parameters():
 
 def test_training():
     param = BayesParameter(
+        shape=(),
         prior=Normal(loc=0.0, scale=1.0),
         posterior=Normal(loc=1.0, scale=1.0)
     )
@@ -61,11 +62,13 @@ def test_ComplexityCost():
             super().__init__()
 
             self.param1 = BayesParameter(
+                shape=(),
                 prior=Normal(loc=0.0, scale=1.0),
                 posterior=Normal(loc=1.0, scale=1.0)
             )
 
             self.param2 = BayesParameter(
+                shape=(),
                 prior=Normal(loc=0.0, scale=1.0),
                 posterior=Normal(loc=0.0, scale=2.0)
             )
@@ -79,15 +82,36 @@ def test_ComplexityCost():
     losses = [ComplexityCost(param)() for param in [model.param1, model.param2]]
     assert loss == sum(losses)
 
-    pass
 
-def test_Linear():
+def test_linear():
     class BayesLinear(nn.Module):
         def __init__(self, in_features: int, out_features: int):
             super().__init__()
 
-            self.weight = BayesParameter()
-            self.bias = BayesParameter()
+            self.weight = BayesParameter(shape=(out_features, in_features))
+            self.bias = BayesParameter(shape=(out_features,))
 
         def forward(self, input: Tensor) -> Tensor:
             return F.linear(input, self.weight(), self.bias())
+
+    net = BayesLinear(12, 24)
+
+    prior = Normal(0.0, 1.0)
+    net.weight.prior = prior
+    net.bias.prior = prior
+
+    net.weight.posterior = Normal(
+        loc=torch.full(net.weight.shape, 8.0),
+        scale=torch.full(net.weight.shape, 4.0)
+    )
+    net.bias.posterior = Normal(
+        loc=torch.full(net.bias.shape, 1.0),
+        scale=torch.full(net.bias.shape, 2.0)
+    )
+
+    net.state_dict()
+
+    input = torch.randn(12)
+    output = net(input)
+
+    pass
