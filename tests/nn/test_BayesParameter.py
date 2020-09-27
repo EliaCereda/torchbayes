@@ -56,6 +56,55 @@ def test_training():
     assert loss == 0.0
 
 
+def test_linear():
+    class BayesLinear(nn.Module):
+        def __init__(self, in_features: int, out_features: int):
+            super().__init__()
+
+            self.weight = BayesParameter(shape=(out_features, in_features))
+            self.bias = BayesParameter(shape=(out_features,))
+
+        def forward(self, input: Tensor) -> Tensor:
+            return F.linear(input, self.weight(), self.bias())
+
+    net = BayesLinear(12, 24)
+
+    prior = Normal(0.0, 1.0)
+    net.weight.prior = prior.expand(net.weight.shape)
+    net.bias.prior = prior.expand(net.bias.shape)
+
+    net.weight.posterior = Normal(
+        loc=torch.full(net.weight.shape, 8.0),
+        scale=torch.full(net.weight.shape, 4.0)
+    )
+    net.bias.posterior = Normal(
+        loc=torch.full(net.bias.shape, 1.0),
+        scale=torch.full(net.bias.shape, 2.0)
+    )
+
+    input = torch.randn(12)
+    output = net(input)
+
+
+def test_shape_expand():
+    bp = BayesParameter(shape=(12,))
+
+    bp.prior = Normal(0.0, 1.0)
+    bp.posterior = Normal(1.0, 2.0)
+
+    sample: Tensor = bp()
+
+    # Test that the parameter returns the correct shape, by expanding the result
+    # of sampling the posterior. Test that in this case the returned values are
+    # all the same.
+    # TODO: does this even make sense? What should the semantics be if the
+    #  distributions don't match the shape of the parameter?
+    assert sample.shape == bp.shape
+    assert torch.all(sample == sample[0])
+
+    pass
+
+
 def test_ComplexityCost():
     class Model(nn.Module):
         def __init__(self):
@@ -81,37 +130,3 @@ def test_ComplexityCost():
     # Check ComplexityCost of model is sum of ComplexityCosts of params
     losses = [ComplexityCost(param)() for param in [model.param1, model.param2]]
     assert loss == sum(losses)
-
-
-def test_linear():
-    class BayesLinear(nn.Module):
-        def __init__(self, in_features: int, out_features: int):
-            super().__init__()
-
-            self.weight = BayesParameter(shape=(out_features, in_features))
-            self.bias = BayesParameter(shape=(out_features,))
-
-        def forward(self, input: Tensor) -> Tensor:
-            return F.linear(input, self.weight(), self.bias())
-
-    net = BayesLinear(12, 24)
-
-    prior = Normal(0.0, 1.0)
-    net.weight.prior = prior
-    net.bias.prior = prior
-
-    net.weight.posterior = Normal(
-        loc=torch.full(net.weight.shape, 8.0),
-        scale=torch.full(net.weight.shape, 4.0)
-    )
-    net.bias.posterior = Normal(
-        loc=torch.full(net.bias.shape, 1.0),
-        scale=torch.full(net.bias.shape, 2.0)
-    )
-
-    net.state_dict()
-
-    input = torch.randn(12)
-    output = net(input)
-
-    pass

@@ -1,6 +1,6 @@
 import torch
-from torch import Tensor
 from torch import nn
+from torch import Tensor
 from torch.distributions import Distribution, kl_divergence
 
 from numbers import Number
@@ -54,6 +54,10 @@ class _DistributionWrapper(nn.Module):
         raise NotImplementedError()
 
 
+def _distribution_shape(distribution: Distribution):
+    return distribution.batch_shape + distribution.event_shape
+
+
 SizeLike = Union[int, Tuple[int, ...], torch.Size]
 
 
@@ -76,6 +80,7 @@ class BayesParameter(nn.Module):
     @prior.setter
     def prior(self, prior: Distribution):
         if prior is not None:
+            assert _distribution_shape(prior) == self.shape
             prior = _DistributionWrapper(prior, parameters=False)
 
         self._prior = prior
@@ -88,6 +93,7 @@ class BayesParameter(nn.Module):
     @posterior.setter
     def posterior(self, posterior: Distribution):
         if posterior is not None:
+            assert _distribution_shape(posterior) == self.shape
             assert posterior.has_rsample, \
                 "BayesParameter requires a posterior distribution which supports rsample(...)."
             posterior = _DistributionWrapper(posterior, parameters=True)
@@ -95,6 +101,9 @@ class BayesParameter(nn.Module):
         self._posterior = posterior
 
     def forward(self) -> Tensor:
+        assert self.posterior is not None, \
+            "The posterior distribution must be initialized before sampling."
+
         return self.posterior.rsample()
 
 
