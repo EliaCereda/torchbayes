@@ -43,6 +43,17 @@ class _DistributionWrapper(nn.Module):
             else:
                 self.register_buffer(name, arg)
 
+        # FIXME: this really needs to be handled in a better way
+        from torch.distributions import MixtureSameFamily
+        if isinstance(distribution, MixtureSameFamily):
+            subdists = ["mixture_distribution", "component_distribution"]
+
+            for name in subdists:
+                subdist = getattr(distribution, name)
+                wrapper = _DistributionWrapper(subdist, parameters)
+
+                self.add_module(name, wrapper)
+
     def forward(self):
         raise NotImplementedError()
 
