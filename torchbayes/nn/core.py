@@ -4,7 +4,7 @@ from torch import Tensor
 from torch.distributions import Distribution
 
 from numbers import Number
-from typing import Union, Tuple
+from typing import Union, Tuple, Dict, Type
 
 TensorLike = Union[Number, Tensor]
 SizeLike = Union[int, Tuple[int, ...], torch.Size]
@@ -27,39 +27,32 @@ class _DistributionWrapper(nn.Module):
       load time.
     """
 
-    def __init__(self, distribution: Distribution, parameters: bool):
+    def __init__(self, dist_cls: Type[Distribution], dist_args: Dict, parameters: bool, shape: SizeLike):
         super().__init__()
 
-        self.distribution = distribution
+        for name, arg in dist_args.items():
+            if isinstance(arg, Distribution):
+                arg = arg.expand(shape).sample()
 
-        # TODO: being able to override might be useful
-        args = distribution.arg_constraints.keys()
-
-        for name in args:
-            arg = getattr(distribution, name)
+            arg = torch.as_tensor(arg)
 
             if parameters:
+                arg = nn.Parameter(arg)
                 self.register_parameter(name, arg)
             else:
                 self.register_buffer(name, arg)
 
-        # FIXME: this really needs to be handled in a better way
-        from torch.distributions import MixtureSameFamily
-        if isinstance(distribution, MixtureSameFamily):
-            subdists = ["mixture_distribution", "component_distribution"]
+            dist_args[name] = arg
 
-            for name in subdists:
-                subdist = getattr(distribution, name)
-                wrapper = _DistributionWrapper(subdist, parameters)
-
-                self.add_module(name, wrapper)
+        self._dist_cls = dist_cls
+        self._dist_args = dist_args
+        self._shape = shape
 
     def forward(self):
         raise NotImplementedError()
 
-
-def _distribution_shape(distribution: Distribution):
-    return distribution.batch_shape + distribution.event_shape
+    def distribution(self) -> Distribution:
+        return self._dist_cls(**self._dist_args).expand(self._shape)
 
 
 class BayesModel(nn.Module):
@@ -73,54 +66,42 @@ class BayesModel(nn.Module):
 
 
 class BayesParameter(nn.Module):
-    def __init__(self, shape: SizeLike,
-                 prior: Distribution = None, posterior: Distribution = None):
+    def __init__(self, shape: SizeLike):
         super().__init__()
 
         self.shape = torch.Size(shape)
 
-        self.prior = prior
-        self.posterior = posterior
+        self._prior = None
+        self._posterior = None
+        self._sample = None
 
-        self._sampled = None
-
-    # TODO: a property decorator specific for _DistributionWrapper might be useful
     @property
     def prior(self) -> Distribution:
         if self._prior is not None:
-            return self._prior.distribution
+            return self._prior.distribution()
 
-    @prior.setter
-    def prior(self, prior: Distribution):
-        if prior is not None:
-            assert _distribution_shape(prior) == self.shape
-            prior = _DistributionWrapper(prior, parameters=False)
-
-        self._prior = prior
+    def set_prior(self, prior_cls: Type[Distribution], **kwargs: TensorLike):
+        self._prior = _DistributionWrapper(prior_cls, kwargs, parameters=False, shape=self.shape)
 
     @property
     def posterior(self) -> Distribution:
         if self._posterior is not None:
-            return self._posterior.distribution
+            return self._posterior.distribution()
 
-    @posterior.setter
-    def posterior(self, posterior: Distribution):
-        if posterior is not None:
-            assert _distribution_shape(posterior) == self.shape
-            assert posterior.has_rsample, \
-                "BayesParameter requires a posterior distribution which supports rsample(...)."
-            posterior = _DistributionWrapper(posterior, parameters=True)
+    def set_posterior(self, posterior_cls: Type[Distribution], **kwargs: TensorLike):
+        assert posterior_cls.has_rsample, \
+            "BayesParameter requires a posterior distribution which supports rsample(...)."
 
-        self._posterior = posterior
+        self._posterior = _DistributionWrapper(posterior_cls, kwargs, parameters=True, shape=self.shape)
 
     def sample_(self):
         assert self.posterior is not None, \
             "The posterior distribution must be initialized before sampling."
 
-        self._sampled = self.posterior.rsample()
+        self._sample = self.posterior.rsample()
 
     def forward(self) -> Tensor:
-        assert self._sampled is not None, \
+        assert self._sample is not None, \
             "sample_() must be called before calling forward()."
 
-        return self._sampled
+        return self._sample

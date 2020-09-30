@@ -1,34 +1,26 @@
+import torch
 from torch import nn
 from torch.distributions import Distribution
 
-from typing import Callable, Type
+from typing import Callable, Type, Union, Any
 
-from .core import BayesParameter
+from .core import BayesParameter, TensorLike
 
 
-def init_priors(prior: Distribution) -> Callable[[nn.Module], None]:
+DistributionFactory = Union[Type[Distribution], Callable[[Any], Distribution]]
+
+
+def init_priors(prior_cls: DistributionFactory, **kwargs: TensorLike) -> Callable[[nn.Module], None]:
     def initializer(module: nn.Module):
         if isinstance(module, BayesParameter):
-            module.prior = prior.expand(module.shape)
+            module.set_prior(prior_cls, **kwargs)
 
     return initializer
 
 
-def init_posteriors(posterior_cls: Type[Distribution], *args: Distribution, **kwargs: Distribution) -> Callable[[nn.Module], None]:
+def init_posteriors(posterior_cls: DistributionFactory, **kwargs: Distribution) -> Callable[[nn.Module], None]:
     def initializer(module: nn.Module):
         if isinstance(module, BayesParameter):
-            shape = module.shape
-
-            params = []
-            for arg in args:
-                param = nn.Parameter(arg.expand(shape).sample())
-                params.append(param)
-
-            kwparams = {}
-            for key, arg in kwargs.items():
-                param = nn.Parameter(arg.expand(shape).sample())
-                kwparams[key] = param
-
-            module.posterior = posterior_cls(*params, **kwparams)
+            module.set_posterior(posterior_cls, **kwargs)
 
     return initializer

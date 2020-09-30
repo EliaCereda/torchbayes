@@ -28,13 +28,14 @@ class Model(bnn.BayesModel):
         self.init_parameters()
 
     def init_parameters(self):
-        prior = NormalScaleMixture(pi=1/2, sigma1=1e-1, sigma2=1e-7)
-        self.apply(bnn.init_priors(prior))
+        self.apply(bnn.init_priors(
+            NormalScaleMixture, pi=1/2, sigma1=1e-1, sigma2=1e-7
+        ))
 
         # FIXME: does not make sense as it is
-        posterior_cls = Normal
-        posterior_params = dict(loc=Normal(0.0, 0.01), scale=Uniform(-0.01, +0.01))
-        self.apply(bnn.init_posteriors(posterior_cls, **posterior_params))
+        self.apply(bnn.init_posteriors(
+            Normal, loc=Normal(0.0, 0.01), scale=Uniform(-0.01, +0.01)
+        ))
 
     def forward(self, input):
         return self.net(input)
