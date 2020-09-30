@@ -1,17 +1,19 @@
 import torch
 from torch import nn
 from torch import Tensor
-from torch.distributions import Distribution, kl_divergence
+from torch.distributions import Distribution
 
 from numbers import Number
 from typing import Union, Tuple
 
 TensorLike = Union[Number, Tensor]
+SizeLike = Union[int, Tuple[int, ...], torch.Size]
 
 
 class _DistributionWrapper(nn.Module):
     """
-    Wrapper for `Distribution`s to help them participate in `nn.Module` behaviours.
+    Wrapper for `distributions.Distribution`s to help them participate in
+    `nn.Module` behaviours.
 
     The arguments of the distribution appear as parameters or buffers of the
     module: collecting training parameters for the optimizers, moving modules
@@ -58,7 +60,14 @@ def _distribution_shape(distribution: Distribution):
     return distribution.batch_shape + distribution.event_shape
 
 
-SizeLike = Union[int, Tuple[int, ...], torch.Size]
+class BayesModel(nn.Module):
+    def sample_(self: nn.Module):
+        self.apply(self.sample_parameters_)
+
+    @staticmethod
+    def sample_parameters_(module: nn.Module):
+        if isinstance(module, BayesParameter):
+            module.sample_()
 
 
 class BayesParameter(nn.Module):
@@ -70,6 +79,8 @@ class BayesParameter(nn.Module):
 
         self.prior = prior
         self.posterior = posterior
+
+        self._sampled = None
 
     # TODO: a property decorator specific for _DistributionWrapper might be useful
     @property
@@ -100,11 +111,17 @@ class BayesParameter(nn.Module):
 
         self._posterior = posterior
 
-    def forward(self) -> Tensor:
+    def sample_(self):
         assert self.posterior is not None, \
             "The posterior distribution must be initialized before sampling."
 
-        return self.posterior.rsample()
+        self._sampled = self.posterior.rsample()
+
+    def forward(self) -> Tensor:
+        assert self._sampled is not None, \
+            "sample_() must be called before calling forward()."
+
+        return self._sampled
 
 
 class ComplexityCost(nn.Module):
@@ -114,10 +131,16 @@ class ComplexityCost(nn.Module):
         modules = model.modules()
         self._params = list(filter(self._is_param, modules))
 
+    def forward(self):
+        return sum(self._mc_kl_divergence(param) for param in self._params)
+
     @staticmethod
     def _is_param(module: nn.Module):
         return isinstance(module, BayesParameter)
 
-    def forward(self):
-        return sum(kl_divergence(param.posterior, param.prior) for param in self._params)
+    @staticmethod
+    def _mc_kl_divergence(param: BayesParameter) -> Tensor:
+        """TODO: revisit the name"""
+        current_sample = param()
+        return param.posterior.log_prob(current_sample) - param.prior.log_prob(current_sample)
 
