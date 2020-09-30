@@ -36,18 +36,9 @@ class _DistributionWrapper(nn.Module):
         args = distribution.arg_constraints.keys()
 
         for name in args:
-            arg: Tensor = getattr(distribution, name)
+            arg = getattr(distribution, name)
 
             if parameters:
-                # FIXME: this is not ideal, Parameter(arg) makes a copy of the
-                #   data but whoever created the Distribution may depend on
-                #   changing `arg` through the original copy.
-                #   Explore whether it's possible to directly expect the caller
-                #   to pass a Parameter.
-                if not isinstance(arg, nn.Parameter):
-                    arg = nn.Parameter(arg)
-                    setattr(distribution, name, arg)
-
                 self.register_parameter(name, arg)
             else:
                 self.register_buffer(name, arg)
@@ -62,7 +53,7 @@ def _distribution_shape(distribution: Distribution):
 
 class BayesModel(nn.Module):
     def sample_(self: nn.Module):
-        self.apply(self.sample_parameters_)
+        self.apply(BayesModel.sample_parameters_)
 
     @staticmethod
     def sample_parameters_(module: nn.Module):

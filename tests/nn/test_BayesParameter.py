@@ -1,8 +1,5 @@
 import torch
-from torch import Tensor
 from torch.distributions import Normal, kl_divergence
-from torch import nn
-from torch.nn import functional as F
 
 from torchbayes.nn import BayesParameter, ComplexityCost, BayesModel
 
@@ -54,38 +51,6 @@ def test_training():
     # Check convergence
     loss = kl_divergence(param.posterior, param.prior)
     assert loss == 0.0
-
-
-def test_linear():
-    class BayesLinear(nn.Module):
-        def __init__(self, in_features: int, out_features: int):
-            super().__init__()
-
-            self.weight = BayesParameter(shape=(out_features, in_features))
-            self.bias = BayesParameter(shape=(out_features,))
-
-        def forward(self, input: Tensor) -> Tensor:
-            return F.linear(input, self.weight(), self.bias())
-
-    net = BayesLinear(12, 24)
-
-    prior = Normal(0.0, 1.0)
-    net.weight.prior = prior.expand(net.weight.shape)
-    net.bias.prior = prior.expand(net.bias.shape)
-
-    net.weight.posterior = Normal(
-        loc=torch.full(net.weight.shape, 8.0),
-        scale=torch.full(net.weight.shape, 4.0)
-    )
-    net.bias.posterior = Normal(
-        loc=torch.full(net.bias.shape, 1.0),
-        scale=torch.full(net.bias.shape, 2.0)
-    )
-
-    net.apply(BayesModel.sample_parameters_)
-
-    input = torch.randn(12)
-    output = net(input)
 
 
 # def test_shape_expand():

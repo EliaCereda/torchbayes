@@ -270,3 +270,6 @@ dmypy.json
 .pytype/
 
 # End of https://www.toptal.com/developers/gitignore/api/python,pycharm,macos
+
+# Datasets and saved models
+examples/*/data
