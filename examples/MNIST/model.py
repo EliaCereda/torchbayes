@@ -4,7 +4,7 @@ from torch import nn
 from torch.distributions import Normal, Uniform
 
 import torchbayes.nn as bnn
-from torchbayes.distributions import NormalScaleMixture
+from torchbayes.distributions import ScaleMixtureNormal
 
 
 class Model(bnn.BayesModel):
@@ -29,7 +29,7 @@ class Model(bnn.BayesModel):
 
     def init_parameters(self):
         self.apply(bnn.init_priors(
-            NormalScaleMixture, pi=1/2, sigma1=1e-1, sigma2=1e-7
+            ScaleMixtureNormal, pi=1/2, sigma1=1e-1, sigma2=1e-7
         ))
 
         # FIXME: does not make sense as it is

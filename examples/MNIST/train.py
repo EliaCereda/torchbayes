@@ -1,3 +1,4 @@
+import math
 import os
 
 import torch
@@ -17,7 +18,8 @@ def main(*,
          device=None,
          batch_size=128,
          learning_rate=1e-4,
-         n_epochs=5):
+         n_epochs=5,
+         n_samples=10):
 
     if data_dir is None:
         example_dir = os.path.dirname(os.path.abspath(__file__))
@@ -32,8 +34,8 @@ def main(*,
     train_set = datasets.MNIST(data_dir, train=True, download=True, transform=transform)
     test_set = datasets.MNIST(data_dir, train=False, transform=transform)
 
-    train_loader = data.DataLoader(train_set, batch_size=batch_size, shuffle=True)
-    test_loader = data.DataLoader(test_set, batch_size=batch_size, shuffle=False)
+    train_loader = data.DataLoader(train_set, batch_size=batch_size, shuffle=True, pin_memory=True)
+    test_loader = data.DataLoader(test_set, batch_size=batch_size, shuffle=False, pin_memory=True)
 
     # Model setup
     model = Model([1, 28, 28], 10).to(device)
@@ -42,22 +44,70 @@ def main(*,
 
     optimizer = optim.SGD(model.parameters(), lr=learning_rate)
 
-    for epoch in trange(n_epochs):
-        for i, batch in enumerate(tqdm(train_loader)):
-            inputs, targets = map(lambda x: x.to(device), batch)
+    n_batches = len(train_loader)
+
+    epochs = trange(n_epochs)
+    for epoch in epochs:
+
+        batches = tqdm(train_loader, leave=False)
+        for batch, batch_ in enumerate(batches):
+            inputs, targets = map(lambda x: x.to(device), batch_)
 
             optimizer.zero_grad()
 
-            model.sample_()
-            logits = model(inputs)
-            loss = complexity() + likelihood(logits, targets)
+            train_loss = 0.0
+            train_accuracy = 0.0
 
-            loss.backward()
+            for sample in range(n_samples):
+                model.sample_()
+                logits = model(inputs)
+
+                weight = 2 ** (-batch - 2) #math.exp(math.log(2) * (n_batches - batch - 1) - math.log(2 ** n_batches - 1))
+                loss  = weight * complexity() + likelihood(logits, targets)
+                loss /= n_samples
+                loss.backward()
+
+                preds = torch.argmax(logits, dim=1)
+                accuracy = (preds == targets).to(torch.float32).mean()
+                accuracy /= n_samples
+
+                train_loss += loss
+                train_accuracy += accuracy
+
             optimizer.step()
 
-            if i == 10:
-                break
+            batches.set_postfix(dict(
+                # complexity=complexity,
+                # likelihood=likelihood,
+                t_loss=train_loss.item(),
+                t_accuracy=train_accuracy.item(),
+            ))
+
+        with torch.no_grad():
+            for batch in test_loader:
+                inputs, targets = map(lambda x: x.to(device), batch)
+
+                test_loss = 0.0
+                test_accuracy = 0.0
+
+                for sample in range(n_samples):
+                    model.sample_()
+                    logits = model(inputs)
+
+                    loss = complexity() / n_batches + likelihood(logits, targets)
+                    loss /= n_samples
+
+                    preds = torch.argmax(logits, dim=1)
+                    accuracy = (preds == targets).to(torch.float32).mean()
+
+                    test_loss += loss
+                    test_accuracy += accuracy / n_samples
+
+                epochs.set_postfix(dict(
+                    v_loss=test_loss.item(),
+                    v_accuracy=test_accuracy.item(),
+                ))
 
 
 if __name__ == '__main__':
-    main(n_epochs=1)
+    main()

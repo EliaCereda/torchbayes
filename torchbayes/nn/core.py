@@ -42,17 +42,16 @@ class _DistributionWrapper(nn.Module):
             else:
                 self.register_buffer(name, arg)
 
-            dist_args[name] = arg
-
         self._dist_cls = dist_cls
-        self._dist_args = dist_args
+        self._dist_args = list(dist_args.keys())
         self._shape = shape
 
     def forward(self):
         raise NotImplementedError()
 
     def distribution(self) -> Distribution:
-        return self._dist_cls(**self._dist_args).expand(self._shape)
+        dist_args = {name: getattr(self, name) for name in self._dist_args}
+        return self._dist_cls(**dist_args).expand(self._shape)
 
 
 class BayesModel(nn.Module):

@@ -23,4 +23,4 @@ class ComplexityCost(nn.Module):
     def _mc_kl_divergence(param: BayesParameter) -> Tensor:
         """TODO: revisit the name"""
         current_sample = param()
-        return torch.sum(param.posterior.log_prob(current_sample) - param.prior.log_prob(current_sample))
+        return (param.posterior.log_prob(current_sample) - param.prior.log_prob(current_sample)).sum()
