@@ -46,7 +46,7 @@ def main(*,
     complexity = bnn.ComplexityCost(model)
     likelihood = nn.CrossEntropyLoss()
 
-    optimizer = optim.SGD(model.parameters(), lr=learning_rate)
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
 
     epochs = trange(n_epochs)

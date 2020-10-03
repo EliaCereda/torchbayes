@@ -34,7 +34,7 @@ class Model(bnn.BayesModel):
 
         # FIXME: does not make sense as it is
         self.apply(bnn.init_posteriors(
-            Normal, loc=Normal(0.0, 0.01), scale=Uniform(-0.01, +0.01)
+            Normal, loc=Normal(0.0, 0.01), scale=Uniform(1e-7, 1e-1)
         ))
 
     def forward(self, input):
