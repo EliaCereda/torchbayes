@@ -10,7 +10,7 @@ from tqdm import tqdm, trange
 
 from torchbayes import nn as bnn
 
-from examples.MNIST.model import Model
+from model import Model
 
 
 def main(*,
