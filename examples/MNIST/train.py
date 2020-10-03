@@ -19,7 +19,8 @@ def main(*,
          batch_size=128,
          learning_rate=1e-4,
          n_epochs=5,
-         n_samples=10):
+         n_samples=10,
+         loader_args=None):
 
     if data_dir is None:
         example_dir = os.path.dirname(os.path.abspath(__file__))
@@ -28,14 +29,17 @@ def main(*,
     if device is None:
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
+    if loader_args is None:
+        loader_args = dict(pin_memory=True, num_workers=6)
+
     # Data preparation
     transform = transforms.ToTensor()
 
     train_set = datasets.MNIST(data_dir, train=True, download=True, transform=transform)
     test_set = datasets.MNIST(data_dir, train=False, transform=transform)
 
-    train_loader = data.DataLoader(train_set, batch_size=batch_size, shuffle=True, pin_memory=True)
-    test_loader = data.DataLoader(test_set, batch_size=batch_size, shuffle=False, pin_memory=True)
+    train_loader = data.DataLoader(train_set, batch_size=batch_size, shuffle=True, **loader_args)
+    test_loader = data.DataLoader(test_set, batch_size=batch_size, shuffle=False, **loader_args)
 
     # Model setup
     model = Model([1, 28, 28], 10).to(device)
@@ -44,11 +48,12 @@ def main(*,
 
     optimizer = optim.SGD(model.parameters(), lr=learning_rate)
 
-    n_batches = len(train_loader)
 
     epochs = trange(n_epochs)
     for epoch in epochs:
+        model.train()
 
+        n_batches = len(train_loader)
         batches = tqdm(train_loader, leave=False)
         for batch, batch_ in enumerate(batches):
             inputs, targets = map(lambda x: x.to(device), batch_)
@@ -84,6 +89,8 @@ def main(*,
             ))
 
         with torch.no_grad():
+            model.eval()
+
             for batch in test_loader:
                 inputs, targets = map(lambda x: x.to(device), batch)
 
