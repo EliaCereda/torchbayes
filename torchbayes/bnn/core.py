@@ -13,7 +13,7 @@ SizeLike = Union[int, Tuple[int, ...], torch.Size]
 class _DistributionWrapper(nn.Module):
     """
     Wrapper for `distributions.Distribution`s to help them participate in
-    `nn.Module` behaviours.
+    `bnn.Module` behaviours.
 
     The arguments of the distribution appear as parameters or buffers of the
     module: collecting training parameters for the optimizers, moving modules

@@ -1,7 +1,7 @@
 import torch
 from torch.distributions import Normal, kl_divergence
 
-from torchbayes.nn import BayesParameter, ComplexityCost, BayesModel
+from torchbayes.bnn import BayesParameter, ComplexityCost, BayesModel
 
 
 def all_identical(it1, it2):

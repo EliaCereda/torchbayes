@@ -1,12 +1,12 @@
 import torchbayes.distributions
-import torchbayes.nn
+import torchbayes.bnn
 import torchbayes.stats
 
 __version__ = '0.0.1'
 
 __all__ = [
     'distributions',
-    'nn',
+    'bnn',
     'stats',
 
     '__version__'

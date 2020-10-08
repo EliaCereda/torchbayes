@@ -1,8 +1,8 @@
 import torch
 from torch.distributions import Normal
 
-from torchbayes import nn as bnn
-from torchbayes.nn import BayesModel, BayesLinear
+from torchbayes import bnn as bnn
+from torchbayes.bnn import BayesModel, BayesLinear
 
 
 def test_linear():

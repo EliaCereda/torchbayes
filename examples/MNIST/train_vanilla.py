@@ -8,7 +8,7 @@ from torchvision import datasets, transforms
 
 from tqdm import tqdm, trange
 
-from torchbayes import nn as bnn
+from torchbayes import bnn
 
 from model import Model
 

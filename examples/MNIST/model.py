@@ -3,7 +3,7 @@ import math
 from torch import nn
 from torch.distributions import Normal, Uniform, Exponential
 
-import torchbayes.nn as bnn
+from torchbayes import bnn
 from torchbayes.distributions import ScaleMixtureNormal
 
 
