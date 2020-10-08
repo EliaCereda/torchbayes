@@ -100,6 +100,12 @@ class BayesParameter(nn.Module):
         self._sample = self.posterior.rsample()
 
     def forward(self) -> Tensor:
+        # When tracing, sample_() must be called inside forward(), so that the
+        # computation of self._sample can be correctly traced. Otherwise it looks
+        # like an external constant requiring gradients, which is not supported.
+        if torch.jit.is_tracing():
+            self.sample_()
+
         assert self._sample is not None, \
             "sample_() must be called before calling forward()."
 

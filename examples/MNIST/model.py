@@ -1,7 +1,7 @@
 import math
 
 from torch import nn
-from torch.distributions import Normal, Uniform
+from torch.distributions import Normal, Uniform, Exponential
 
 import torchbayes.nn as bnn
 from torchbayes.distributions import ScaleMixtureNormal
@@ -29,13 +29,13 @@ class Model(bnn.BayesModel):
 
     def init_parameters(self):
         self.apply(bnn.init_priors(
-            ScaleMixtureNormal, pi=1/2, sigma1=1e-1, sigma2=1e-7
+            ScaleMixtureNormal, pi=1/2, sigma1=math.exp(0), sigma2=math.exp(-6)
         ))
 
         # FIXME: does not make sense as it is
-        self.apply(bnn.init_posteriors(
-            Normal, loc=Normal(0.0, 0.01), scale=Uniform(1e-7, 1e-1)
-        ))
+        # self.apply(bnn.init_posteriors(
+        #     Normal, loc=Normal(0.0, 0.01), scale=Normal(math.exp(-2), 0.01)
+        # ))
 
     def forward(self, input):
         return self.net(input)
