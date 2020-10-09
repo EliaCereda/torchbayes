@@ -98,6 +98,11 @@ class LitModel(pl.LightningModule):
         self.log('valid/complexity', complexity)
         self.log('valid/likelihood', likelihood)
 
+    def forward(self, inputs):
+        self.model.sample_()
+
+        return self.model(inputs)
+
 
 def main(args):
     logger = pl.loggers.WandbLogger(job_type='debug')
