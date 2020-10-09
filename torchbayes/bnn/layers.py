@@ -18,15 +18,16 @@ class BayesLinear(nn.Module):
         import math
         import torch
         from torch.nn import init
-        from torch.distributions import Normal
+        from torchbayes.distributions import NormalNonSingular
 
         weight_loc = torch.empty(self.weight.shape)
         init.kaiming_uniform_(weight_loc, a=math.sqrt(5))
 
-        weight_scale = torch.empty(self.weight.shape)
-        init.normal_(weight_scale, mean=0.1, std=0.01)
+        weight_rho = torch.empty(self.weight.shape)
+        init.normal_(weight_rho, mean=0.1, std=0.01)
+        weight_rho.expm1_().log_()
 
-        self.weight.set_posterior(Normal, loc=weight_loc, scale=weight_scale)
+        self.weight.set_posterior(NormalNonSingular, mu=weight_loc, rho=weight_rho)
 
         fan_in, _ = init._calculate_fan_in_and_fan_out(weight_loc)
         bound = 1 / math.sqrt(fan_in)
@@ -34,10 +35,11 @@ class BayesLinear(nn.Module):
         bias_loc = torch.empty(self.bias.shape)
         init.uniform_(bias_loc, -bound, bound)
 
-        bias_scale = torch.empty(self.bias.shape)
-        init.normal_(bias_scale, mean=0.1, std=0.01)
+        bias_rho = torch.empty(self.bias.shape)
+        init.normal_(bias_rho, mean=0.1, std=0.01)
+        bias_rho.expm1_().log_()
 
-        self.bias.set_posterior(Normal, loc=bias_loc, scale=bias_scale)
+        self.bias.set_posterior(NormalNonSingular, mu=bias_loc, rho=bias_rho)
 
     def forward(self, input: Tensor) -> Tensor:
         return F.linear(input, self.weight(), self.bias())
