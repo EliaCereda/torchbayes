@@ -15,6 +15,7 @@ class BayesLinear(nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self) -> None:
+        # FIXME: clean up this copy/paste
         import math
         import torch
         from torch.nn import init

@@ -1,7 +1,10 @@
-import argparse
 import os
+from argparse import ArgumentParser
+
+import numpy as np
 
 import torch
+from pytorch_lightning import Trainer
 from torch import nn
 from torch.utils import data
 from torchvision import datasets, transforms
@@ -16,21 +19,40 @@ import wandb
 from model import Model
 
 
-class LitModel(pl.LightningModule):
-    def __init__(self, data_dir=None, batch_size=128, lr=1e-3):
+# FIXME: move to proper utils file
+def take(it, n):
+    for x, _ in zip(it, range(n)):
+        yield x
+
+
+class Task(pl.LightningModule):
+    hparam_keys = ['batch_size', 'lr']
+
+    @classmethod
+    def add_model_args(cls, parent: ArgumentParser) -> ArgumentParser:
+        parser = ArgumentParser(parents=[parent], add_help=False)
+        group = parser.add_argument_group('Model Hyper-Parameters')
+        group.add_argument('--batch_size', type=int, default=128,
+                           help='Batch size (default: %(default)s)')
+        group.add_argument('--lr', type=float,  default=1e-3,
+                           help='Learning rate (default: %(default)s)')
+
+        return parser
+
+    def __init__(self, hparams, data_dir=None):
         super().__init__()
 
         if data_dir is None:
-            example_dir = os.path.dirname(os.path.abspath(__file__))
-            self.data_dir = os.path.join(example_dir, 'data')
+            self.data_dir = os.path.join(os.getcwd(), 'data')
 
-        self.batch_size = batch_size
-        self.lr = lr
+        self.hparams = {key: getattr(hparams, key) for key in self.hparam_keys}
 
         self.model = Model([1, 28, 28], 10)
 
         self.complexity = bnn.ComplexityCost(self.model)
         self.likelihood = nn.CrossEntropyLoss(reduction='sum')
+
+        self.val_accuracy = pl.metrics.Accuracy()
 
     def prepare_data(self):
         datasets.MNIST(self.data_dir, download=True)
@@ -38,7 +60,7 @@ class LitModel(pl.LightningModule):
     @property
     def _loader_args(self):
         return dict(
-            batch_size=self.batch_size,
+            batch_size=self.hparams.batch_size,
             num_workers=6,  # FIXME: read number of CPUs
             pin_memory=self.on_gpu
         )
@@ -56,7 +78,7 @@ class LitModel(pl.LightningModule):
         return data.DataLoader(dataset, shuffle=False, **self._loader_args)
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.model.parameters(), lr=self.lr)
+        return torch.optim.Adam(self.model.parameters(), lr=self.hparams.lr)
 
     def training_step(self, batch, batch_idx):
         inputs, targets = batch
@@ -88,6 +110,28 @@ class LitModel(pl.LightningModule):
         weight = 2 ** (-batch_idx - 1)
         loss = weight * complexity + likelihood
 
+        preds = torch.argmax(logits, dim=-1)
+        self.val_accuracy.update(preds, targets)
+
+        # Log predictions for debugging
+        if batch_idx == 0:
+            images = []
+            for tensors in take(zip(inputs, targets, preds), 8):
+                input, target, pred = map(lambda x: x.squeeze().cpu(), tensors)
+                caption = f'target: {target}, prediction: {pred}'
+
+                correctness_mask = dict(
+                    mask_data=np.full_like(input, 1 if target == pred else 0),
+                    class_labels={0: 'wrong', 1: 'correct'}
+                )
+                masks = {
+                    'correctness': correctness_mask,
+                }
+                image = wandb.Image(input, caption=caption, masks=masks)
+                images.append(image)
+
+            self.logger.experiment.log({'predictions': images}, commit=False)
+
         return loss, complexity, likelihood
 
     def validation_epoch_end(self, outputs):
@@ -97,37 +141,31 @@ class LitModel(pl.LightningModule):
         self.log('valid/loss', loss)
         self.log('valid/complexity', complexity)
         self.log('valid/likelihood', likelihood)
+        self.log('valid/accuracy', self.val_accuracy.compute())
 
     def forward(self, inputs):
+        """Used in inference mode."""
         self.model.sample_()
 
         return self.model(inputs)
 
 
-def main(args):
-    logger = pl.loggers.WandbLogger(job_type='debug')
-    logger.experiment # FIXME: only called for side effects
+def main():
+    parser = ArgumentParser()
+    parser = Trainer.add_argparse_args(parser)
+    parser = Task.add_model_args(parser)
+    args = parser.parse_args()
 
-    model = LitModel()
-    trainer: pl.Trainer = pl.Trainer.from_argparse_args(args, logger=logger)
+    logger = pl.loggers.WandbLogger()
 
-    # artifact_dir = wandb.use_artifact('model:v2').download()  # '~/Downloads'
-    # model.load_from_checkpoint(os.path.join(artifact_dir, 'model.ckpt'))
+    task = Task(args)
+    trainer: Trainer = Trainer.from_argparse_args(args, logger=logger)
 
     try:
-        trainer.fit(model)
+        trainer.fit(task)
     except InterruptedError:
         pass
 
-    trainer.save_checkpoint('model.ckpt')
-    artifact = wandb.Artifact('model', type='model')
-    artifact.add_file('model.ckpt')
-    wandb.log_artifact(artifact)
-
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser = pl.Trainer.add_argparse_args(parser)
-    args = parser.parse_args()
-
-    main(args)
+    main()
