@@ -4,13 +4,14 @@ from argparse import ArgumentParser
 import numpy as np
 
 import torch
-from pytorch_lightning import Trainer
-from torch import nn
+import torch.nn as nn
+import torch.nn.functional as F
 from torch.utils import data
 from torchvision import datasets, transforms
 
 import pytorch_lightning as pl
 import pytorch_lightning.loggers
+from pytorch_lightning import Trainer
 
 from torchbayes import bnn
 
@@ -52,10 +53,12 @@ class Task(pl.LightningModule):
         self.complexity = bnn.ComplexityCost(self.model)
         self.likelihood = nn.CrossEntropyLoss(reduction='sum')
 
+        self.train_accuracy = pl.metrics.Accuracy()
         self.val_accuracy = pl.metrics.Accuracy()
 
     def prepare_data(self):
         datasets.MNIST(self.data_dir, download=True)
+        datasets.FashionMNIST(self.data_dir, download=True)
 
     @property
     def _loader_args(self):
@@ -75,7 +78,13 @@ class Task(pl.LightningModule):
         transform = transforms.ToTensor()
         dataset = datasets.MNIST(self.data_dir, train=False, transform=transform)
 
-        return data.DataLoader(dataset, shuffle=False, **self._loader_args)
+        # Out-of-domain dataset to evaluate entropy
+        ood_dataset = datasets.FashionMNIST(self.data_dir, train=False, transform=transform)
+
+        return [
+            data.DataLoader(ds, shuffle=False, **self._loader_args)
+            for ds in [dataset, ood_dataset]
+        ]
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.model.parameters(), lr=self.hparams.lr)
@@ -92,13 +101,16 @@ class Task(pl.LightningModule):
         weight = 2 ** (-batch_idx - 1)
         loss = weight * complexity + likelihood
 
+        accuracy = self.train_accuracy(logits, targets)
+
         self.log('train/loss', loss)
         self.log('train/complexity', complexity)
         self.log('train/likelihood', likelihood)
+        self.log('train/accuracy', accuracy)
 
         return loss
 
-    def validation_step(self, batch, batch_idx):
+    def validation_step(self, batch, batch_idx, dataloader_idx):
         inputs, targets = batch
 
         self.model.sample_()
@@ -111,7 +123,16 @@ class Task(pl.LightningModule):
         loss = weight * complexity + likelihood
 
         preds = torch.argmax(logits, dim=-1)
-        self.val_accuracy.update(preds, targets)
+
+        if dataloader_idx == 0:
+            self.val_accuracy.update(preds, targets)
+
+        probs = F.softmax(logits, dim=-1)
+        entropy = -torch.sum(probs * probs.log(), dim=-1)
+
+        ds = '_ood' if dataloader_idx == 1 else ''
+        self.logger.experiment.log({f'valid/entropy{ds}': wandb.Histogram(entropy.cpu())}, commit=False)
+        self.logger.experiment.log({f'valid/probabilities{ds}': wandb.Histogram(probs.cpu())}, commit=False)
 
         # Log predictions for debugging
         if batch_idx == 0:
@@ -130,11 +151,14 @@ class Task(pl.LightningModule):
                 image = wandb.Image(input, caption=caption, masks=masks)
                 images.append(image)
 
-            self.logger.experiment.log({'predictions': images}, commit=False)
+            self.logger.experiment.log({f'predictions{ds}': images}, commit=False)
 
         return loss, complexity, likelihood
 
     def validation_epoch_end(self, outputs):
+        # Outputs is a list of lists when using multiple validation dataloaders.
+        outputs = outputs[0]
+
         metrics = torch.as_tensor(outputs).t()
         loss, complexity, likelihood = metrics.mean(dim=1)
 
@@ -160,6 +184,8 @@ def main():
 
     task = Task(args)
     trainer: Trainer = Trainer.from_argparse_args(args, logger=logger)
+
+    logger.watch(task.model)
 
     try:
         trainer.fit(task)
