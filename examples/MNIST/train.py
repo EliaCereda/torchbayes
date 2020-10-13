@@ -161,8 +161,8 @@ class Task(pl.LightningModule):
                 caption = f'target: {target}, prediction: {pred}'
 
                 correctness_mask = dict(
-                    mask_data=np.full_like(input, 1 if target == pred else 0),
-                    class_labels={0: 'wrong', 1: 'correct'}
+                    mask_data=np.full_like(input, 0 if target == pred else 1),
+                    class_labels={0: 'correct', 1: 'wrong'}
                 )
                 masks = {
                     'correctness': correctness_mask,
