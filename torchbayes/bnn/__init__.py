@@ -10,6 +10,8 @@ __all__ = [
     'BayesLinear',
     
     'ComplexityCost',
+    'complexity_weights',
+    'entropy',
 
     'init_priors',
     'init_posteriors'

@@ -26,8 +26,24 @@ def take(it, n):
         yield x
 
 
+def heterogeneous_transpose(x):
+    transposed = np.asarray(x, dtype=object).T
+    slices = []
+
+    for slice in transposed:
+        if len(slice) > 0 and slice[0].ndim == 0:
+            # Assumes that if the first element is zero-rank, then all are.
+            slice = torch.stack(list(slice))
+        else:
+            slice = torch.cat(list(slice))
+
+        slices.append(slice)
+
+    return slices
+
+
 class Task(pl.LightningModule):
-    hparam_keys = ['batch_size', 'lr']
+    hparam_keys = ['batch_size', 'lr', 'complexity_weight']
 
     @classmethod
     def add_model_args(cls, parent: ArgumentParser) -> ArgumentParser:
@@ -37,6 +53,8 @@ class Task(pl.LightningModule):
                            help='Batch size (default: %(default)s)')
         group.add_argument('--lr', type=float,  default=1e-3,
                            help='Learning rate (default: %(default)s)')
+        group.add_argument('--complexity_weight', choices=bnn.complexity_weights.choices, default='uniform',
+                           help='Complexity weight strategy (default: %(default)s)')
 
         return parser
 
@@ -50,6 +68,7 @@ class Task(pl.LightningModule):
 
         self.model = Model([1, 28, 28], 10)
 
+        self.complexity_weight = bnn.complexity_weights(self.hparams.complexity_weight)
         self.complexity = bnn.ComplexityCost(self.model)
         self.likelihood = nn.CrossEntropyLoss(reduction='sum')
 
@@ -73,6 +92,12 @@ class Task(pl.LightningModule):
         dataset = datasets.MNIST(self.data_dir, train=True, transform=transform)
 
         return data.DataLoader(dataset, shuffle=True, **self._loader_args)
+
+    @property
+    def n_train_batches(self):
+        # Should be zero only during pre-training validation sanity check, since
+        # it's run before preparing the training data loader.
+        return self.trainer.num_training_batches or 1
 
     def val_dataloader(self):
         transform = transforms.ToTensor()
@@ -98,7 +123,7 @@ class Task(pl.LightningModule):
         logits = self.model(inputs)
         likelihood = self.likelihood(logits, targets)
 
-        weight = 2 ** (-batch_idx - 1)
+        weight = self.complexity_weight(batch_idx, self.n_train_batches)
         loss = weight * complexity + likelihood
 
         accuracy = self.train_accuracy(logits, targets)
@@ -119,20 +144,14 @@ class Task(pl.LightningModule):
         logits = self.model(inputs)
         likelihood = self.likelihood(logits, targets)
 
-        weight = 2 ** (-batch_idx - 1)
+        weight = self.complexity_weight(batch_idx, self.n_train_batches)
         loss = weight * complexity + likelihood
 
         preds = torch.argmax(logits, dim=-1)
+        entropy = bnn.entropy(logits, dim=-1)
 
         if dataloader_idx == 0:
             self.val_accuracy.update(preds, targets)
-
-        probs = F.softmax(logits, dim=-1)
-        entropy = -torch.sum(probs * probs.log(), dim=-1)
-
-        ds = '_ood' if dataloader_idx == 1 else ''
-        self.logger.experiment.log({f'valid/entropy{ds}': wandb.Histogram(entropy.cpu())}, commit=False)
-        self.logger.experiment.log({f'valid/probabilities{ds}': wandb.Histogram(probs.cpu())}, commit=False)
 
         # Log predictions for debugging
         if batch_idx == 0:
@@ -151,21 +170,28 @@ class Task(pl.LightningModule):
                 image = wandb.Image(input, caption=caption, masks=masks)
                 images.append(image)
 
+            ds = '_ood' if dataloader_idx == 1 else ''
             self.logger.experiment.log({f'predictions{ds}': images}, commit=False)
 
-        return loss, complexity, likelihood
+        return loss, complexity, likelihood, entropy
 
     def validation_epoch_end(self, outputs):
         # Outputs is a list of lists when using multiple validation dataloaders.
-        outputs = outputs[0]
+        for i, output in enumerate(outputs):
+            metrics = heterogeneous_transpose(output)
 
-        metrics = torch.as_tensor(outputs).t()
-        loss, complexity, likelihood = metrics.mean(dim=1)
+            if i == 0:
+                loss, complexity, likelihood = (metric.mean() for metric in metrics[:3])
 
-        self.log('valid/loss', loss)
-        self.log('valid/complexity', complexity)
-        self.log('valid/likelihood', likelihood)
-        self.log('valid/accuracy', self.val_accuracy.compute())
+                self.log('valid/loss', loss)
+                self.log('valid/complexity', complexity)
+                self.log('valid/likelihood', likelihood)
+                self.log('valid/accuracy', self.val_accuracy.compute())
+
+            entropy = metrics[3].cpu()
+
+            ds = '_ood' if i == 1 else ''
+            self.logger.experiment.log({f'valid/entropy{ds}': wandb.Histogram(entropy)})
 
     def forward(self, inputs):
         """Used in inference mode."""
