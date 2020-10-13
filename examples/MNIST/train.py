@@ -1,4 +1,5 @@
 import os
+import math
 from argparse import ArgumentParser
 
 import numpy as np
@@ -43,7 +44,10 @@ def heterogeneous_transpose(x):
 
 
 class Task(pl.LightningModule):
-    hparam_keys = ['batch_size', 'lr', 'complexity_weight']
+    hparam_keys = [
+        'batch_size', 'lr', 'complexity_weight',
+        'pi', 'sigma1', 'sigma2',
+    ]
 
     @classmethod
     def add_model_args(cls, parent: ArgumentParser) -> ArgumentParser:
@@ -56,6 +60,13 @@ class Task(pl.LightningModule):
         group.add_argument('--complexity_weight', choices=bnn.complexity_weights.choices, default='uniform',
                            help='Complexity weight strategy (default: %(default)s)')
 
+        group.add_argument('--pi', type=float, default=0.5,
+                           help='Parameter π of prior distribution (default: %(default)s)')
+        group.add_argument('--sigma1', type=float, default=0,
+                           help='Parameter -log σ1 of prior distribution (default: %(default)s)')
+        group.add_argument('--sigma2', type=float, default=6,
+                           help='Parameter -log σ2 of prior distribution (default: %(default)s)')
+
         return parser
 
     def __init__(self, hparams, data_dir=None):
@@ -66,7 +77,12 @@ class Task(pl.LightningModule):
 
         self.hparams = {key: getattr(hparams, key) for key in self.hparam_keys}
 
-        self.model = Model([1, 28, 28], 10)
+        self.model = Model(
+            [1, 28, 28], 10,
+            pi=self.hparams.pi,
+            sigma1=math.exp(-self.hparams.sigma1),
+            sigma2=math.exp(-self.hparams.sigma2)
+        )
 
         self.complexity_weight = bnn.complexity_weights(self.hparams.complexity_weight)
         self.complexity = bnn.ComplexityCost(self.model)

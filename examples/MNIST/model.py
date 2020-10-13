@@ -10,7 +10,7 @@ from torchbayes.distributions import ScaleMixtureNormal
 class Model(bnn.BayesModel, nn.Sequential):
     """Architecture used by [Blundell'15] for the experiments on MNIST."""
 
-    def __init__(self, in_shape, out_features):
+    def __init__(self, in_shape, out_features, **kwargs):
         super().__init__(
             nn.Flatten(),
 
@@ -23,11 +23,11 @@ class Model(bnn.BayesModel, nn.Sequential):
             bnn.BayesLinear(1200, out_features),
         )
 
-        self.init_parameters()
+        self.init_parameters(**kwargs)
 
-    def init_parameters(self):
+    def init_parameters(self, pi, sigma1, sigma2):
         self.apply(bnn.init_priors(
-            ScaleMixtureNormal, pi=1/2, sigma1=math.exp(0), sigma2=math.exp(-6)
+            ScaleMixtureNormal, pi=pi, sigma1=sigma1, sigma2=sigma2
         ))
 
         # FIXME: does not make sense as it is
