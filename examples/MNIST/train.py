@@ -27,13 +27,13 @@ def take(it, n):
         yield x
 
 
-def heterogeneous_transpose(x):
+def heterogeneous_transpose(x, stack=None):
     transposed = np.asarray(x, dtype=object).T
     slices = []
 
     for slice in transposed:
-        if len(slice) > 0 and slice[0].ndim == 0:
-            # Assumes that if the first element is zero-rank, then all are.
+        # Assumes that if the first element is zero-rank, then all are.
+        if stack or (stack is None and len(slice) > 0 and slice[0].ndim == 0):
             slice = torch.stack(list(slice))
         else:
             slice = torch.cat(list(slice))
@@ -47,6 +47,7 @@ class Task(pl.LightningModule):
     hparam_keys = [
         'batch_size', 'lr', 'complexity_weight',
         'pi', 'sigma1', 'sigma2',
+        'val_samples',
     ]
 
     @classmethod
@@ -66,6 +67,9 @@ class Task(pl.LightningModule):
                            help='Parameter -log σ1 of prior distribution (default: %(default)s)')
         group.add_argument('--sigma2', type=float, default=6,
                            help='Parameter -log σ2 of prior distribution (default: %(default)s)')
+
+        group.add_argument('--val_samples', type=int, default=1,
+                           help='Number of networks to sample when computing validation metrics  (default: %(default)s)')
 
         return parser
 
@@ -99,7 +103,7 @@ class Task(pl.LightningModule):
     def _loader_args(self):
         return dict(
             batch_size=self.hparams.batch_size,
-            num_workers=6,  # FIXME: read number of CPUs
+            num_workers=3,  # FIXME: read number of CPUs
             pin_memory=self.on_gpu
         )
 
@@ -152,6 +156,19 @@ class Task(pl.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx, dataloader_idx):
+        metrics = []
+        for sample_idx in range(self.hparams.val_samples):
+            sample_metrics = self.validation_step_sample(batch, sample_idx, batch_idx, dataloader_idx)
+            metrics.append(sample_metrics)
+
+        metrics = heterogeneous_transpose(metrics, stack=True)
+
+        loss, complexity, likelihood = (metric.mean(dim=0) for metric in metrics[:3])
+        entropy = metrics[3].max(dim=0).values  # TODO: maximum entropy principle
+
+        return loss, complexity, likelihood, entropy
+
+    def validation_step_sample(self, batch, sample_idx, batch_idx, dataloader_idx):
         inputs, targets = batch
 
         self.model.sample_()
@@ -170,7 +187,7 @@ class Task(pl.LightningModule):
             self.val_accuracy.update(preds, targets)
 
         # Log predictions for debugging
-        if batch_idx == 0:
+        if batch_idx == 0 and sample_idx == 0:
             images = []
             for tensors in take(zip(inputs, targets, preds), 8):
                 input, target, pred = map(lambda x: x.squeeze().cpu(), tensors)
