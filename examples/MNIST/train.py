@@ -240,10 +240,9 @@ def main():
     args = parser.parse_args()
 
     logger = pl.loggers.WandbLogger()
-
-    task = Task(args)
     trainer: Trainer = Trainer.from_argparse_args(args, logger=logger)
 
+    task = Task(args)
     logger.watch(task.model)
 
     try:
