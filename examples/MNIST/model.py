@@ -25,10 +25,17 @@ class Model(bnn.BayesModel, nn.Sequential):
 
         self.init_parameters(**kwargs)
 
-    def init_parameters(self, pi, sigma1, sigma2):
-        self.apply(bnn.init_priors(
-            ScaleMixtureNormal, pi=pi, sigma1=sigma1, sigma2=sigma2
-        ))
+    def init_parameters(self, prior, sigma, pi, sigma1, sigma2):
+        if prior == 'normal':
+            self.apply(bnn.init_priors(
+                Normal, loc=0.0, scale=sigma
+            ))
+        elif prior == 'scale_mixture':
+            self.apply(bnn.init_priors(
+                ScaleMixtureNormal, pi=pi, sigma1=sigma1, sigma2=sigma2
+            ))
+        else:
+            raise ValueError(f"Unsupported prior distribution '{prior}'.")
 
         # FIXME: does not make sense as it is
         # self.apply(bnn.init_posteriors(

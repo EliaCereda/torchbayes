@@ -1,23 +1,21 @@
-name: blundell-mnist
-description: The MNIST experiment from Blundell'15.
-program: ../examples/MNIST/train.py
+name: blundell-mnist-normal
+description: The MNIST experiment from Blundell'15, with Normal priors.
+program: ../../examples/MNIST/train.py
 metric: valid/accuracy
 method: grid
 parameters:
-  max_epochs:
-    values: [20]
+  min_epochs:
+    value: 20
   lr:
     values: [1e-3, 1e-4, 1e-5]
   complexity_weight:
     values: ['uniform', 'exp_decay']
+  prior:
+    value: 'normal'
+  sigma:
+    values: [0, 1, 2, 3, 4]
   val_samples:
     values: [1, 2, 5, 10]
-  pi:
-    values: [0.25, 0.50, 0.75]
-  sigma1:
-    values: [0, 1, 2]
-  sigma2:
-    values: [6, 7, 8]
 
 command:
   - ${env}
