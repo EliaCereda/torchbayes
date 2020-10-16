@@ -6,7 +6,6 @@ import numpy as np
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch.utils import data
 from torchvision import datasets, transforms
 
@@ -252,7 +251,7 @@ def main():
         pl.callbacks.EarlyStopping('valid/accuracy', mode='max'),
     ]
     logger = pl.loggers.WandbLogger()
-    trainer: Trainer = Trainer.from_argparse_args(args, callbacks=callbacks, logger=logger)
+    trainer = Trainer.from_argparse_args(args, callbacks=callbacks, logger=logger)
 
     task = Task(args)
     logger.watch(task.model)
