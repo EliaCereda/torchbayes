@@ -1,5 +1,5 @@
-name: blundell-mnist
-description: The MNIST experiment from Blundell'15.
+name: blundell-mnist-scale_mixture
+description: The MNIST experiment from Blundell'15, with Scale Mixture priors.
 program: ../../examples/MNIST/train.py
 metric: valid/accuracy
 method: grid
@@ -11,7 +11,7 @@ parameters:
   complexity_weight:
     values: ['uniform', 'exp_decay']
   prior:
-    value: 'normal'
+    value: 'scale_mixture'
   pi:
     values: [0.25, 0.50, 0.75]
   sigma1:
@@ -19,7 +19,7 @@ parameters:
   sigma2:
     values: [6, 7, 8]
   val_samples:
-    values: [1, 2, 5, 10]
+    values: [1, 2, 5, 10, 30, 50]
 
 command:
   - ${env}

@@ -195,24 +195,24 @@ class Task(pl.LightningModule):
             self.val_accuracy.update(preds, targets)
 
         # Log predictions for debugging
-        if batch_idx == 0 and sample_idx == 0:
-            images = []
-            for tensors in take(zip(inputs, targets, preds), 8):
-                input, target, pred = map(lambda x: x.squeeze().cpu(), tensors)
-                caption = f'target: {target}, prediction: {pred}'
-
-                correctness_mask = dict(
-                    mask_data=np.full_like(input, 0 if target == pred else 1),
-                    class_labels={0: 'correct', 1: 'wrong'}
-                )
-                masks = {
-                    'correctness': correctness_mask,
-                }
-                image = wandb.Image(input, caption=caption, masks=masks)
-                images.append(image)
-
-            ds = '_ood' if dataloader_idx == 1 else ''
-            self.logger.experiment.log({f'predictions{ds}': images}, commit=False)
+        # if batch_idx == 0 and sample_idx == 0:
+        #     images = []
+        #     for tensors in take(zip(inputs, targets, preds), 8):
+        #         input, target, pred = map(lambda x: x.squeeze().cpu(), tensors)
+        #         caption = f'target: {target}, prediction: {pred}'
+        #
+        #         correctness_mask = dict(
+        #             mask_data=np.full_like(input, 0 if target == pred else 1),
+        #             class_labels={0: 'correct', 1: 'wrong'}
+        #         )
+        #         masks = {
+        #             'correctness': correctness_mask,
+        #         }
+        #         image = wandb.Image(input, caption=caption, masks=masks)
+        #         images.append(image)
+        #
+        #     ds = '_ood' if dataloader_idx == 1 else ''
+        #     self.logger.experiment.log({f'predictions{ds}': images}, commit=False)
 
         return loss, complexity, likelihood, entropy
 
