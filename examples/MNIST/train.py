@@ -1,4 +1,3 @@
-import os
 import math
 from argparse import ArgumentParser
 
@@ -18,6 +17,7 @@ from torchbayes import bnn
 import wandb
 
 from model import Model
+from data import MNISTData
 
 
 # FIXME: move to proper utils file
@@ -43,8 +43,8 @@ def heterogeneous_transpose(x, stack=None):
 
 
 class Task(pl.LightningModule):
-    hparam_keys = [
-        'batch_size', 'lr', 'complexity_weight',
+    config_keys = [
+        'lr', 'complexity_weight',
         'prior',
         'sigma',
         'pi', 'sigma1', 'sigma2',
@@ -55,8 +55,6 @@ class Task(pl.LightningModule):
     def add_model_args(cls, parent: ArgumentParser) -> ArgumentParser:
         parser = ArgumentParser(parents=[parent], add_help=False)
         group = parser.add_argument_group('Model Hyper-Parameters')
-        group.add_argument('--batch_size', type=int, default=128,
-                           help='Batch size (default: %(default)s)')
         group.add_argument('--lr', type=float,  default=1e-3,
                            help='Learning rate (default: %(default)s)')
         group.add_argument('--complexity_weight', choices=bnn.complexity_weights.choices, default='uniform',
@@ -80,13 +78,10 @@ class Task(pl.LightningModule):
 
         return parser
 
-    def __init__(self, hparams, data_dir=None):
+    def __init__(self, config):
         super().__init__()
 
-        if data_dir is None:
-            self.data_dir = os.path.join(os.getcwd(), 'data')
-
-        self.hparams = {key: getattr(hparams, key) for key in self.hparam_keys}
+        self.hparams = {key: getattr(config, key) for key in self.config_keys}
 
         self.model = Model(
             [1, 28, 28], 10,
@@ -104,41 +99,11 @@ class Task(pl.LightningModule):
         self.train_accuracy = pl.metrics.Accuracy()
         self.val_accuracy = pl.metrics.Accuracy()
 
-    def prepare_data(self):
-        datasets.MNIST(self.data_dir, download=True)
-        datasets.FashionMNIST(self.data_dir, download=True)
-
-    @property
-    def _loader_args(self):
-        return dict(
-            batch_size=self.hparams.batch_size,
-            num_workers=3,  # FIXME: read number of CPUs
-            pin_memory=self.on_gpu
-        )
-
-    def train_dataloader(self):
-        transform = transforms.ToTensor()
-        dataset = datasets.MNIST(self.data_dir, train=True, transform=transform)
-
-        return data.DataLoader(dataset, shuffle=True, **self._loader_args)
-
     @property
     def n_train_batches(self):
         # Should be zero only during pre-training validation sanity check, since
         # it's run before preparing the training data loader.
         return self.trainer.num_training_batches or 1
-
-    def val_dataloader(self):
-        transform = transforms.ToTensor()
-        dataset = datasets.MNIST(self.data_dir, train=False, transform=transform)
-
-        # Out-of-domain dataset to evaluate entropy
-        ood_dataset = datasets.FashionMNIST(self.data_dir, train=False, transform=transform)
-
-        return [
-            data.DataLoader(ds, shuffle=False, **self._loader_args)
-            for ds in [dataset, ood_dataset]
-        ]
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.model.parameters(), lr=self.hparams.lr)
@@ -195,24 +160,24 @@ class Task(pl.LightningModule):
             self.val_accuracy.update(preds, targets)
 
         # Log predictions for debugging
-        # if batch_idx == 0 and sample_idx == 0:
-        #     images = []
-        #     for tensors in take(zip(inputs, targets, preds), 8):
-        #         input, target, pred = map(lambda x: x.squeeze().cpu(), tensors)
-        #         caption = f'target: {target}, prediction: {pred}'
-        #
-        #         correctness_mask = dict(
-        #             mask_data=np.full_like(input, 0 if target == pred else 1),
-        #             class_labels={0: 'correct', 1: 'wrong'}
-        #         )
-        #         masks = {
-        #             'correctness': correctness_mask,
-        #         }
-        #         image = wandb.Image(input, caption=caption, masks=masks)
-        #         images.append(image)
-        #
-        #     ds = '_ood' if dataloader_idx == 1 else ''
-        #     self.logger.experiment.log({f'predictions{ds}': images}, commit=False)
+        if batch_idx == 0 and sample_idx == 0:
+            images = []
+            for tensors in take(zip(inputs, targets, preds), 8):
+                input, target, pred = map(lambda x: x.squeeze().cpu(), tensors)
+                caption = f'target: {target}, prediction: {pred}'
+
+                correctness_mask = dict(
+                    mask_data=np.full_like(input, 0 if target == pred else 1),
+                    class_labels={0: 'correct', 1: 'wrong'}
+                )
+                masks = {
+                    'correctness': correctness_mask,
+                }
+                image = wandb.Image(input, caption=caption, masks=masks)
+                images.append(image)
+
+            ds = '_ood' if dataloader_idx == 1 else ''
+            self.logger.experiment.log({f'predictions{ds}': images}, commit=False)
 
         return loss, complexity, likelihood, entropy
 
@@ -245,19 +210,23 @@ def main():
     parser = ArgumentParser()
     parser = Trainer.add_argparse_args(parser)
     parser = Task.add_model_args(parser)
+    parser = MNISTData.add_data_args(parser)
     args = parser.parse_args()
 
     callbacks = [
         pl.callbacks.EarlyStopping('valid/accuracy', mode='max'),
     ]
     logger = pl.loggers.WandbLogger()
-    trainer = Trainer.from_argparse_args(args, callbacks=callbacks, logger=logger)
+    trainer: Trainer = Trainer.from_argparse_args(args, callbacks=callbacks, logger=logger)
 
     task = Task(args)
+    data = MNISTData(args)
+
     logger.watch(task.model)
+    logger.log_hyperparams(data.config)
 
     try:
-        trainer.fit(task)
+        trainer.fit(task, data)
     except InterruptedError:
         pass
 
