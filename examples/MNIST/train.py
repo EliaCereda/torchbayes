@@ -5,8 +5,6 @@ import numpy as np
 
 import torch
 import torch.nn as nn
-from torch.utils import data
-from torchvision import datasets, transforms
 
 import pytorch_lightning as pl
 import pytorch_lightning.loggers
@@ -164,7 +162,7 @@ class Task(pl.LightningModule):
             images = []
             for tensors in take(zip(inputs, targets, preds), 8):
                 input, target, pred = map(lambda x: x.squeeze().cpu(), tensors)
-                caption = f'target: {target}, prediction: {pred}'
+                caption = f'target: {target}, prediction: {pred}'  # TODO: add entropy
 
                 correctness_mask = dict(
                     mask_data=np.full_like(input, 0 if target == pred else 1),
@@ -207,6 +205,8 @@ class Task(pl.LightningModule):
 
 
 def main():
+    wandb.init('train')
+
     parser = ArgumentParser()
     parser = Trainer.add_argparse_args(parser)
     parser = Task.add_model_args(parser)
