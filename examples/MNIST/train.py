@@ -3,12 +3,14 @@ from argparse import ArgumentParser
 
 import numpy as np
 
-import torch
-import torch.nn as nn
+import os
 
 import pytorch_lightning as pl
 import pytorch_lightning.loggers
 from pytorch_lightning import Trainer
+
+import torch
+import torch.nn as nn
 
 from torchbayes import bnn
 
@@ -204,9 +206,42 @@ class Task(pl.LightningModule):
         return self.model(inputs)
 
 
-def main():
-    wandb.init('train')
+def log_checkpoints(trainer):
+    for callback in trainer.callbacks:
+        if not isinstance(callback, pl.callbacks.ModelCheckpoint):
+            continue
 
+        if callback.monitor:
+            metric_name = callback.monitor
+            metric_value = callback.best_model_score
+        else:
+            metric_name = 'epoch'
+            metric_value = trainer.current_epoch
+
+        if isinstance(metric_value, torch.Tensor):
+            metric_value = metric_value.item()
+
+        metadata = dict(
+            metric_name=metric_name,
+            metric_value=metric_value
+        )
+
+        filepath = callback.best_model_path
+        filename = os.path.relpath(filepath, callback.dirpath)
+
+        # Handle metrics with a slash in the name
+        metric_name = metric_name.replace('/', '.')
+        filename = filename.replace('/', '.')
+
+        name = f'{wandb.run.name}-{metric_name}'
+
+        artifact = wandb.Artifact(name=name, type='checkpoint', metadata=metadata)
+        artifact.add_file(filepath, name=filename)
+
+        wandb.log_artifact(artifact)
+
+
+def main():
     parser = ArgumentParser()
     parser = Trainer.add_argparse_args(parser)
     parser = Task.add_model_args(parser)
@@ -215,8 +250,16 @@ def main():
 
     callbacks = [
         pl.callbacks.EarlyStopping('valid/accuracy', mode='max'),
+        pl.callbacks.ModelCheckpoint(
+            filename='{epoch}-{valid/accuracy:.3f}',
+            monitor='valid/accuracy', mode='max',
+        ),
+        pl.callbacks.ModelCheckpoint(
+            filename='{epoch}-{valid/entropy_auc:.3f}',
+            monitor='valid/entropy_auc', mode='max',
+        )
     ]
-    logger = pl.loggers.WandbLogger()
+    logger = pl.loggers.WandbLogger(job_type='train')
     trainer: Trainer = Trainer.from_argparse_args(args, callbacks=callbacks, logger=logger)
 
     task = Task(args)
@@ -229,6 +272,8 @@ def main():
         trainer.fit(task, data)
     except InterruptedError:
         pass
+
+    log_checkpoints(trainer)
 
 
 if __name__ == '__main__':
