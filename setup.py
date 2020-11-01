@@ -18,7 +18,7 @@ setup_args = dict(
     python_requires='>=3.8',
     install_requires=['torch'],
     setup_requires=['pytest-runner'],
-    tests_require=['pytest', 'tqdm', 'pytorch-lightning', 'wandb'],
+    tests_require=['pytest'],
     packages=find_packages(),
 )
 
