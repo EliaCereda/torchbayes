@@ -11,11 +11,11 @@ import wandb
 from data import MNISTData
 
 
-def generate_splits(dataset, splits, out_path):
+def generate_splits(dataset, splits, out_file):
     subsets = data.random_split(dataset, splits.values())
     indices = dict(zip(splits.keys(), (s.indices for s in subsets)))
 
-    torch.save(indices, out_path)
+    torch.save(indices, out_file)
 
 
 def main():
@@ -30,30 +30,25 @@ def main():
         'valid': 10000
     }
 
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        wandb.init('dataset_splits')
+    wandb.init('dataset_splits')
 
-        # MNIST
-        splits_path = os.path.join(tmp_dir, 'mnist-splits.pt')
+    # MNIST
+    artifact = wandb.Artifact('mnist', type='dataset_split')
+
+    with artifact.new_file('splits.pt', mode='wb') as f:
         dataset = MNIST(args.data_dir, train=True, download=True)
-        generate_splits(dataset, splits_sizes, splits_path)
+        generate_splits(dataset, splits_sizes, f)
 
-        artifact = wandb.Artifact('mnist', type='dataset_split')
-        artifact.add_file(splits_path, 'splits.pt')
-        wandb.log_artifact(artifact)
+    wandb.log_artifact(artifact)
 
-        # FashionMNIST
-        splits_path = os.path.join(tmp_dir, 'fmnist-splits.pt')
+    # FashionMNIST
+    artifact = wandb.Artifact('fashion_mnist', type='dataset_split')
+
+    with artifact.new_file('splits.pt', mode='wb') as f:
         dataset = FashionMNIST(args.data_dir, train=True, download=True)
-        generate_splits(dataset, splits_sizes, splits_path)
+        generate_splits(dataset, splits_sizes, f)
 
-        artifact = wandb.Artifact('fashion_mnist', type='dataset_split')
-        artifact.add_file(splits_path, 'splits.pt')
-        wandb.log_artifact(artifact)
-
-        # Wait until all artifacts have been uploaded, then clean up the
-        # temporary directory.
-        wandb.finish()
+    wandb.log_artifact(artifact)
 
 
 if __name__ == '__main__':
