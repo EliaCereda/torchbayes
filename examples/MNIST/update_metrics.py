@@ -72,7 +72,7 @@ def main():
     api = wandb.Api()
     sweep: wandb_api.Sweep = api.sweep(args.sweep)
 
-    print(f"Processing sweep {_sweep_url(sweep)}")
+    print(f"Processing sweep {sweep.url}")
 
     plots_dir = os.path.join('update_metrics', sweep.id)
 
@@ -92,13 +92,6 @@ def main():
 
         if not args.dry_run:
             run.update()
-
-
-# FIXME: should be available in wandb 0.10.9
-def _sweep_url(self):
-    path = self.path
-    path.insert(2, "sweeps")
-    return "https://app.wandb.ai/" + "/".join(path)
 
 
 if __name__ == '__main__':
