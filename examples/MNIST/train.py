@@ -52,31 +52,27 @@ class Task(pl.LightningModule):
     ]
 
     @classmethod
-    def add_model_args(cls, parent: ArgumentParser) -> ArgumentParser:
-        parser = ArgumentParser(parents=[parent], add_help=False)
-        group = parser.add_argument_group('Model Hyper-Parameters')
-        group.add_argument('--lr', type=float,  default=1e-3,
+    def add_model_args(cls, parser):
+        parser.add_argument('--lr', type=float,  default=1e-3,
                            help='Learning rate (default: %(default)s)')
-        group.add_argument('--complexity_weight', choices=bnn.complexity_weights.choices, default='uniform',
+        parser.add_argument('--complexity_weight', choices=bnn.complexity_weights.choices, default='uniform',
                            help='Complexity weight strategy (default: %(default)s)')
 
-        group.add_argument('--prior', choices=['normal', 'scale_mixture'], default='scale_mixture',
+        parser.add_argument('--prior', choices=['normal', 'scale_mixture'], default='scale_mixture',
                            help='Prior distribution (default: %(default)s)')
 
-        group.add_argument('--sigma', type=float, default=0,
+        parser.add_argument('--sigma', type=float, default=0,
                            help='Parameter -log σ for the normal prior (default: %(default)s)')
 
-        group.add_argument('--pi', type=float, default=0.5,
+        parser.add_argument('--pi', type=float, default=0.5,
                            help='Parameter π for the scale_mixture prior (default: %(default)s)')
-        group.add_argument('--sigma1', type=float, default=0,
+        parser.add_argument('--sigma1', type=float, default=0,
                            help='Parameter -log σ1 for the scale_mixture prior (default: %(default)s)')
-        group.add_argument('--sigma2', type=float, default=6,
+        parser.add_argument('--sigma2', type=float, default=6,
                            help='Parameter -log σ2 for the scale_mixture prior (default: %(default)s)')
 
-        group.add_argument('--val_samples', type=int, default=1,
+        parser.add_argument('--val_samples', type=int, default=1,
                            help='Number of networks to sample when computing validation metrics  (default: %(default)s)')
-
-        return parser
 
     def __init__(self, config):
         super().__init__()
@@ -244,8 +240,8 @@ def log_checkpoints(trainer):
 def main():
     parser = ArgumentParser()
     parser = Trainer.add_argparse_args(parser)
-    parser = Task.add_model_args(parser)
-    parser = MNISTData.add_data_args(parser)
+    Task.add_model_args(parser.add_argument_group('Model Hyper-Parameters'))
+    MNISTData.add_data_args(parser.add_argument_group('Data Parameters'))
     args = parser.parse_args()
 
     callbacks = [
