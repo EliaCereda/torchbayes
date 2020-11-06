@@ -197,7 +197,7 @@ class Task(pl.LightningModule):
             entropy = metrics[3].cpu()
 
             ds = '_ood' if i == 1 else ''
-            self.logger.experiment.log({f'valid/entropy{ds}': wandb.Histogram(entropy)})
+            self.logger.experiment.log({f'valid/entropy{ds}': wandb.Histogram(entropy)}, commit=False)
 
     def forward(self, inputs):
         """Used in inference mode."""
