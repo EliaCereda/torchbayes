@@ -261,7 +261,7 @@ def main():
     task = Task(args)
     data = MNISTData(args)
 
-    logger.watch(task.model)
+    logger.watch(task.model, log='all')
     logger.log_hyperparams(data.config)
 
     try:
