@@ -77,7 +77,8 @@ class Task(pl.LightningModule):
     def __init__(self, config):
         super().__init__()
 
-        self.hparams = {key: getattr(config, key) for key in self.config_keys}
+        hparams = {key: getattr(config, key) for key in self.config_keys}
+        self.save_hyperparameters(hparams)
 
         self.model = Model(
             [1, 28, 28], 10,
