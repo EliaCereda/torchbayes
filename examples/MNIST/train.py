@@ -207,34 +207,39 @@ def log_checkpoints(trainer):
         if not isinstance(callback, pl.callbacks.ModelCheckpoint):
             continue
 
+        file_path = callback.best_model_path
+
+        # callback.best_model_path is an empty string until the first checkpoint
+        # has been saved.
+        if not file_path:
+            continue
+
+        file_name = os.path.relpath(file_path, callback.dirpath)
+
         if callback.monitor:
             metric_name = callback.monitor
             metric_value = callback.best_model_score
         else:
-            metric_name = 'epoch'
+            metric_name = 'latest_epoch'
             metric_value = trainer.current_epoch
 
         if isinstance(metric_value, torch.Tensor):
             metric_value = metric_value.item()
 
         metadata = dict(
+            file_name=file_name,
             metric_name=metric_name,
             metric_value=metric_value
         )
 
-        filepath = callback.best_model_path
-        filename = os.path.relpath(filepath, callback.dirpath)
-
         # Handle metrics with a slash in the name
-        metric_name = metric_name.replace('/', '.')
-        filename = filename.replace('/', '.')
+        metric_name = metric_name.replace('/', '_')
 
-        name = f'{wandb.run.name}-{metric_name}'
+        artifact_name = f'{wandb.run.id}'
+        artifact = wandb.Artifact(name=artifact_name, type='checkpoint', metadata=metadata)
+        artifact.add_file(file_path, name='checkpoint.pt')
 
-        artifact = wandb.Artifact(name=name, type='checkpoint', metadata=metadata)
-        artifact.add_file(filepath, name=filename)
-
-        wandb.log_artifact(artifact)
+        wandb.log_artifact(artifact, aliases=[metric_name])
 
 
 def main():
@@ -250,10 +255,14 @@ def main():
             filename='{epoch}-{valid/accuracy:.3f}',
             monitor='valid/accuracy', mode='max',
         ),
+        # pl.callbacks.ModelCheckpoint(
+        #     filename='{epoch}-{valid/entropy_auc:.3f}',
+        #     monitor='valid/entropy_auc', mode='max',
+        # ),
         pl.callbacks.ModelCheckpoint(
-            filename='{epoch}-{valid/entropy_auc:.3f}',
-            monitor='valid/entropy_auc', mode='max',
-        )
+            filename='{epoch}',
+            # Saves the checkpoint of the latest epoch
+        ),
     ]
     logger = pl.loggers.WandbLogger(job_type='train')
     trainer: Trainer = Trainer.from_argparse_args(args, callbacks=callbacks, logger=logger)
