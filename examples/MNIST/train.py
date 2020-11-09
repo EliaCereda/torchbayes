@@ -150,7 +150,7 @@ class Task(pl.LightningModule):
         loss = weight * complexity + likelihood
 
         preds = torch.argmax(logits, dim=-1)
-        entropy = bnn.entropy(logits, dim=-1)
+        entropies = bnn.entropy(logits, dim=-1)
 
         if dataloader_idx == 0:
             self.val_accuracy.update(preds, targets)
@@ -158,9 +158,9 @@ class Task(pl.LightningModule):
         # Log predictions for debugging
         if batch_idx == 0 and sample_idx == 0:
             images = []
-            for tensors in take(zip(inputs, targets, preds), 8):
-                input, target, pred = map(lambda x: x.squeeze().cpu(), tensors)
-                caption = f'target: {target}, prediction: {pred}'  # TODO: add entropy
+            for tensors in take(zip(inputs, targets, preds, entropies), 8):
+                input, target, pred, entropy = map(lambda x: x.squeeze().cpu(), tensors)
+                caption = f'target: {target}, prediction: {pred}, entropy: {entropy:.3f}'
 
                 correctness_mask = dict(
                     mask_data=np.full_like(input, 0 if target == pred else 1),
@@ -175,7 +175,7 @@ class Task(pl.LightningModule):
             ds = '_ood' if dataloader_idx == 1 else ''
             self.logger.experiment.log({f'predictions{ds}': images}, commit=False)
 
-        return loss, complexity, likelihood, entropy
+        return loss, complexity, likelihood, entropies
 
     def validation_epoch_end(self, outputs):
         # Outputs is a list of lists when using multiple validation dataloaders.
@@ -190,10 +190,10 @@ class Task(pl.LightningModule):
                 self.log('valid/likelihood', likelihood)
                 self.log('valid/accuracy', self.val_accuracy.compute())
 
-            entropy = metrics[3].cpu()
+            entropies = metrics[3].cpu()
 
             ds = '_ood' if i == 1 else ''
-            self.logger.experiment.log({f'valid/entropy{ds}': wandb.Histogram(entropy)}, commit=False)
+            self.logger.experiment.log({f'valid/entropy{ds}': wandb.Histogram(entropies)}, commit=False)
 
     def forward(self, inputs):
         """Used in inference mode."""
