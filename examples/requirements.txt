@@ -5,4 +5,4 @@ scikit-learn~=0.23.2
 torch~=1.6.0
 torchvision~=0.7.0
 tqdm~=4.51.0
-wandb~=0.10.9
+wandb~=0.10.10

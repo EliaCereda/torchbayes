@@ -11,9 +11,14 @@ from torchvision import datasets, transforms
 
 import wandb
 
+
 class MNISTData(pl.LightningDataModule):
     config_keys = [
         'data_dir', 'batch_size',
+    ]
+
+    dataset_keys = [
+        'mnist', 'fashion_mnist',
     ]
 
     @classmethod

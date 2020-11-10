@@ -26,13 +26,12 @@ complexity_weights.choices = dict(
 )
 
 
-def entropy(logits, dim=-1):
+def entropy(probs, dim=-1):
     # Clamp to an epsilon constant to ensure that 0 log 0 = 0, instead of nan:
     # the value is set as float32.ulp(0.0) = 1e-45, so that only 0.0 is changed.
     # TODO: ideally should use the ulp of the actual dtype of logits.
     eps = 1e-45
 
-    probs = F.softmax(logits, dim=dim)
     return -torch.sum(probs * torch.log(probs.clamp_min(eps)), dim=dim)
 
 

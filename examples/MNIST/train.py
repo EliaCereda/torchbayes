@@ -9,8 +9,13 @@ import pytorch_lightning as pl
 import pytorch_lightning.loggers
 from pytorch_lightning import Trainer
 
+import re
+
+from sklearn import metrics
+
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from torchbayes import bnn
 
@@ -97,10 +102,14 @@ class Task(pl.LightningModule):
         self.val_accuracy = pl.metrics.Accuracy()
 
     @property
-    def n_train_batches(self):
+    def _n_train_batches(self):
         # Should be zero only during pre-training validation sanity check, since
         # it's run before preparing the training data loader.
         return self.trainer.num_training_batches or 1
+
+    @property
+    def dataset_keys(self):
+        return self.trainer.datamodule.dataset_keys
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.model.parameters(), lr=self.hparams.lr)
@@ -114,7 +123,7 @@ class Task(pl.LightningModule):
         logits = self.model(inputs)
         likelihood = self.likelihood(logits, targets)
 
-        weight = self.complexity_weight(batch_idx, self.n_train_batches)
+        weight = self.complexity_weight(batch_idx, self._n_train_batches)
         loss = weight * complexity + likelihood
 
         accuracy = self.train_accuracy(logits, targets)
@@ -126,42 +135,52 @@ class Task(pl.LightningModule):
 
         return loss
 
-    def validation_step(self, batch, batch_idx, dataloader_idx):
-        metrics = []
-        for sample_idx in range(self.hparams.val_samples):
-            sample_metrics = self.validation_step_sample(batch, sample_idx, batch_idx, dataloader_idx)
-            metrics.append(sample_metrics)
-
-        metrics = heterogeneous_transpose(metrics, stack=True)
-
-        loss, complexity, likelihood, entropy = (metric.mean(dim=0) for metric in metrics)
-
-        return loss, complexity, likelihood, entropy
-
-    def validation_step_sample(self, batch, sample_idx, batch_idx, dataloader_idx):
-        inputs, targets = batch
-
+    def _validation_step_sample(self, inputs, targets, sample_idx, batch_idx, dl_idx):
         self.model.sample_()
         complexity = self.complexity()
 
         logits = self.model(inputs)
         likelihood = self.likelihood(logits, targets)
 
-        weight = self.complexity_weight(batch_idx, self.n_train_batches)
+        weight = self.complexity_weight(batch_idx, self._n_train_batches)
         loss = weight * complexity + likelihood
 
-        preds = torch.argmax(logits, dim=-1)
-        entropies = bnn.entropy(logits, dim=-1)
+        # Returning probs instead of logits because `validation_step` needs to
+        # compute an average across all samples. Would it be possible to average
+        # the logits pre-softmax and obtain the same result?
+        probs = F.softmax(logits, dim=-1)
 
-        if dataloader_idx == 0:
+        return probs, loss, complexity, likelihood
+
+    def validation_step(self, batch, batch_idx, dl_idx):
+        inputs, targets = batch
+        ds = self.dataset_keys[dl_idx]
+
+        # Sample `val_samples` networks from the posterior distribution of the model
+        # and compute the predictions of each one.
+        outputs = []
+        for sample_idx in range(self.hparams.val_samples):
+            out = self._validation_step_sample(inputs, targets, sample_idx, batch_idx, dl_idx)
+            outputs.append(out)
+
+        # Average the predictions of the ensemble.
+        outputs = heterogeneous_transpose(outputs, stack=True)
+        probs, loss, complexity, likelihood = (output.mean(dim=0) for output in outputs)
+
+        # Compute metrics from the ensemble predictions.
+        preds = torch.argmax(probs, dim=-1)
+        entropy = bnn.entropy(probs, dim=-1)
+
+        if ds == 'mnist':
             self.val_accuracy.update(preds, targets)
 
-        # Log predictions for debugging
-        if batch_idx == 0 and sample_idx == 0:
+        # Log a certain number of predictions to wandb for debugging.
+        n_images = 8
+        if batch_idx == 0:
             images = []
-            for tensors in take(zip(inputs, targets, preds, entropies), 8):
-                input, target, pred, entropy = map(lambda x: x.squeeze().cpu(), tensors)
-                caption = f'target: {target}, prediction: {pred}, entropy: {entropy:.3f}'
+            for tensors in take(zip(inputs, targets, preds, entropy), n_images):
+                input, target, pred, ent = map(lambda x: x.squeeze().cpu(), tensors)
+                caption = f'target: {target}, prediction: {pred}, entropy: {ent:.3f}'
 
                 correctness_mask = dict(
                     mask_data=np.full_like(input, 0 if target == pred else 1),
@@ -173,28 +192,42 @@ class Task(pl.LightningModule):
                 image = wandb.Image(input, caption=caption, masks=masks)
                 images.append(image)
 
-            ds = '_ood' if dataloader_idx == 1 else ''
-            self.logger.experiment.log({f'predictions{ds}': images}, commit=False)
+            self.logger.experiment.log({f'valid/predictions/{ds}': images}, commit=False)
 
-        return loss, complexity, likelihood, entropies
+        return loss, complexity, likelihood, entropy
 
     def validation_epoch_end(self, outputs):
+        entropies = []
+        targets = []
+
         # Outputs is a list of lists when using multiple validation dataloaders.
         for i, output in enumerate(outputs):
-            metrics = heterogeneous_transpose(output)
+            output = heterogeneous_transpose(output)
+            ds = self.dataset_keys[i]
 
-            if i == 0:
-                loss, complexity, likelihood = (metric.mean() for metric in metrics[:3])
+            if ds == 'mnist':
+                loss, complexity, likelihood = (metric.mean() for metric in output[:3])
 
                 self.log('valid/loss', loss)
                 self.log('valid/complexity', complexity)
                 self.log('valid/likelihood', likelihood)
                 self.log('valid/accuracy', self.val_accuracy.compute())
 
-            entropies = metrics[3].cpu()
+            entropy = output[3].cpu()
+            entropies.append(entropy)
+            targets.append(np.full_like(entropy, i))
 
-            ds = '_ood' if i == 1 else ''
-            self.logger.experiment.log({f'valid/entropy{ds}': wandb.Histogram(entropies)}, commit=False)
+            self.logger.experiment.log({f'valid/entropy/{ds}': wandb.Histogram(entropy)}, commit=False)
+
+        # Compute the AUROC metric to measure the power of the entropy to
+        # discriminate the two datasets.
+        entropies = np.concatenate(entropies)
+        targets = np.concatenate(targets)
+
+        fpr, tpr, _ = metrics.roc_curve(targets, entropies)
+        roc_auc = metrics.auc(fpr, tpr)
+
+        self.log('valid/entropy_auc', roc_auc)
 
     def forward(self, inputs):
         """Used in inference mode."""
@@ -203,7 +236,7 @@ class Task(pl.LightningModule):
         return self.model(inputs)
 
 
-def log_checkpoints(trainer):
+def log_checkpoints(trainer, save=False, log=True):
     for callback in trainer.callbacks:
         if not isinstance(callback, pl.callbacks.ModelCheckpoint):
             continue
@@ -217,12 +250,15 @@ def log_checkpoints(trainer):
 
         file_name = os.path.relpath(file_path, callback.dirpath)
 
+        matches = re.match(r"^epoch=(\d+)(-.+)?\.ckpt$", file_name)
+        epoch = matches.group(1) if matches else None
+
         if callback.monitor:
             metric_name = callback.monitor
             metric_value = callback.best_model_score
         else:
             metric_name = 'latest_epoch'
-            metric_value = trainer.current_epoch
+            metric_value = epoch
 
         if isinstance(metric_value, torch.Tensor):
             metric_value = metric_value.item()
@@ -230,22 +266,29 @@ def log_checkpoints(trainer):
         metadata = dict(
             file_name=file_name,
             metric_name=metric_name,
-            metric_value=metric_value
+            metric_value=metric_value,
+            epoch=epoch
         )
 
         # Handle metrics with a slash in the name
-        metric_name = metric_name.replace('/', '_')
+        metric_slug = metric_name.replace('/', '_')
 
-        artifact_name = f'{wandb.run.id}'
-        artifact = wandb.Artifact(name=artifact_name, type='checkpoint', metadata=metadata)
-        artifact.add_file(file_path, name='checkpoint.pt')
+        if save:
+            artifact_name = f'{wandb.run.id}'
+            artifact = wandb.Artifact(name=artifact_name, type='checkpoint', metadata=metadata)
+            artifact.add_file(file_path, name='checkpoint.ckpt')
 
-        wandb.log_artifact(artifact, aliases=[metric_name])
+            wandb.log_artifact(artifact, aliases=[metric_slug])
 
+        if log and callback.monitor:
+            wandb.summary[f'{metric_name}/best_value'] = metric_value
+            wandb.summary[f'{metric_name}/best_epoch'] = epoch
 
 def main():
     parser = ArgumentParser()
     parser = Trainer.add_argparse_args(parser)
+    parser.add_argument('--save_checkpoints', action='store_true',
+                        help="Store the model checkpoints to WandB (default: %(default)s)")
     Task.add_model_args(parser.add_argument_group('Model Hyper-Parameters'))
     MNISTData.add_data_args(parser.add_argument_group('Data Parameters'))
     args = parser.parse_args()
@@ -256,10 +299,10 @@ def main():
             filename='{epoch}-{valid/accuracy:.3f}',
             monitor='valid/accuracy', mode='max',
         ),
-        # pl.callbacks.ModelCheckpoint(
-        #     filename='{epoch}-{valid/entropy_auc:.3f}',
-        #     monitor='valid/entropy_auc', mode='max',
-        # ),
+        pl.callbacks.ModelCheckpoint(
+            filename='{epoch}-{valid/entropy_auc:.3f}',
+            monitor='valid/entropy_auc', mode='max',
+        ),
         pl.callbacks.ModelCheckpoint(
             filename='{epoch}',
             # Saves the checkpoint of the latest epoch
@@ -279,7 +322,7 @@ def main():
     except InterruptedError:
         pass
 
-    log_checkpoints(trainer)
+    log_checkpoints(trainer, save=args.save_checkpoints)
 
 
 if __name__ == '__main__':
