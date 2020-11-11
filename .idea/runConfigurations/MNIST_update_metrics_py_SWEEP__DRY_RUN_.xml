@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="MNIST/update_metrics.py (DRY RUN)" type="PythonConfigurationType" factoryName="Python">
+  <configuration default="false" name="MNIST/update_metrics.py SWEEP (DRY RUN)" type="PythonConfigurationType" factoryName="Python">
     <module name="torchbayes" />
     <option name="INTERPRETER_OPTIONS" value="" />
     <option name="PARENT_ENVS" value="true" />
@@ -13,7 +13,7 @@
     <option name="ADD_SOURCE_ROOTS" value="true" />
     <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
     <option name="SCRIPT_NAME" value="../examples/MNIST/update_metrics.py" />
-    <option name="PARAMETERS" value="torchbayes-examples_MNIST/mv6xysx5 --dry-run" />
+    <option name="PARAMETERS" value="--sweep torchbayes-examples_MNIST/mv6xysx5 --dry-run" />
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />
     <option name="MODULE_MODE" value="false" />
