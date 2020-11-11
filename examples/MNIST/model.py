@@ -10,17 +10,24 @@ from torchbayes.distributions import ScaleMixtureNormal
 class Model(bnn.BayesModel, nn.Sequential):
     """Architecture used by [Blundell'15] for the experiments on MNIST."""
 
-    def __init__(self, in_shape, out_features, **kwargs):
+    def __init__(self, in_shape, out_features, approach, **kwargs):
+        if approach == 'traditional':
+            Linear = nn.Linear
+        elif approach == 'bnn':
+            Linear = bnn.BayesLinear
+        else:
+            raise ValueError(f"Unsupported approach '{approach}'.")
+
         super().__init__(
             nn.Flatten(),
 
-            bnn.BayesLinear(math.prod(in_shape), 1200),
+            Linear(math.prod(in_shape), 1200),
             nn.ReLU(),
 
-            bnn.BayesLinear(1200, 1200),
+            Linear(1200, 1200),
             nn.ReLU(),
 
-            bnn.BayesLinear(1200, out_features),
+            Linear(1200, out_features),
         )
 
         self.init_parameters(**kwargs)

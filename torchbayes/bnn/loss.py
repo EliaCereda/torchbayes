@@ -43,7 +43,10 @@ class ComplexityCost(nn.Module):
         self._params = list(filter(self._is_param, modules))
 
     def forward(self):
-        return sum(self._mc_kl_divergence(param) for param in self._params)
+        return sum(
+            (self._mc_kl_divergence(param) for param in self._params),
+            torch.tensor(0.0)
+        )
 
     @staticmethod
     def _is_param(module: nn.Module):

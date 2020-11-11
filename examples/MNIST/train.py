@@ -49,7 +49,8 @@ def heterogeneous_transpose(x, stack=None):
 
 class Task(pl.LightningModule):
     config_keys = [
-        'lr', 'complexity_weight',
+        'lr', 'approach',
+        'complexity_weight',
         'prior',
         'sigma',
         'pi', 'sigma1', 'sigma2',
@@ -63,6 +64,8 @@ class Task(pl.LightningModule):
         parser.add_argument('--complexity_weight', choices=bnn.complexity_weights.choices, default='uniform',
                            help='Complexity weight strategy (default: %(default)s)')
 
+        parser.add_argument('--approach', choices=['traditional', 'bnn'], default='bnn',
+                           help='Approach to NN training (default: %(default)s)')
         parser.add_argument('--prior', choices=['normal', 'scale_mixture'], default='scale_mixture',
                            help='Prior distribution (default: %(default)s)')
 
@@ -87,6 +90,7 @@ class Task(pl.LightningModule):
 
         self.model = Model(
             [1, 28, 28], 10,
+            approach=self.hparams.approach,
             prior=self.hparams.prior,
             sigma=math.exp(self.hparams.sigma),
             pi=self.hparams.pi,
@@ -283,6 +287,7 @@ def log_checkpoints(trainer, save=False, log=True):
         if log and callback.monitor:
             wandb.summary[f'{metric_name}/best_value'] = metric_value
             wandb.summary[f'{metric_name}/best_epoch'] = epoch
+
 
 def main():
     parser = ArgumentParser()
