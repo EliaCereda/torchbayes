@@ -46,10 +46,13 @@ class MNISTData(pl.LightningDataModule):
         self.transform = transforms.ToTensor()
 
         if stage == 'fit':
-            splits_path = wandb.use_artifact('mnist:latest', type='dataset_split').file()
+            # Access wandb through WandbLogger, which triggers wandb.init(...) if necessary.
+            run = self.trainer.logger.experiment
+
+            splits_path = run.use_artifact('mnist:latest', type='dataset_split').file()
             self.mnist_splits = torch.load(splits_path)
 
-            splits_path = wandb.use_artifact('fashion_mnist:latest', type='dataset_split').file()
+            splits_path = run.use_artifact('fashion_mnist:latest', type='dataset_split').file()
             self.fmnist_splits = torch.load(splits_path)
 
     @property

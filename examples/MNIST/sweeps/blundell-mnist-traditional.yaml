@@ -1,4 +1,4 @@
-name: blundell-mnist-normal
+name: blundell-mnist-traditional
 description: The MNIST experiment from Blundell'15, with a traditional neural network.
 program: ../../examples/MNIST/train.py
 metric: valid/accuracy
