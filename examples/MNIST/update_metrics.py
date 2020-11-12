@@ -11,7 +11,7 @@ import wandb.apis.public as wandb_api
 
 
 # TODO: sync with training script
-CURRENT_VERSION = 2
+CURRENT_VERSION = 3
 
 
 def histogram_to_preds(histogram):
@@ -32,6 +32,8 @@ def histogram_to_preds(histogram):
 
 
 def add_entropy_roc(run, plots_dir):
+    # Using the undocumented summary_metrics, because summary doesn't contain
+    # histograms.
     entropy_id = run.summary_metrics['valid/entropy']
     entropy_ood = run.summary_metrics['valid/entropy_ood']
 
@@ -47,8 +49,9 @@ def add_entropy_roc(run, plots_dir):
     fpr, tpr, _ = metrics.roc_curve(targets, preds)
     roc_auc = metrics.auc(fpr, tpr)
 
-    tqdm.write(f"   + ROC AUC: {roc_auc}")
-    run.summary['valid/entropy_auc'] = roc_auc
+    if 'valid/entropy_auc' not in run.summary:
+        tqdm.write(f"   + ROC AUC: {roc_auc}")
+        run.summary['valid/entropy_auc'] = roc_auc
 
     if plots_dir:
         fig, ax = plt.subplots()
@@ -73,8 +76,14 @@ def add_combined_score(run):
         1 - auc
     ])
 
-    tqdm.write(f"   + Combined score: {score}")
-    run.summary['valid/combined_score'] = score
+    if 'valid/combined_score' not in run.summary:
+        tqdm.write(f"   + Combined score: {score}")
+        run.summary['valid/combined_score'] = score
+
+
+def add_default_approach(run):
+    if 'approach' not in run.config:
+        run.config['approach'] = 'bnn'
 
 
 def main():
@@ -128,6 +137,10 @@ def main():
         if version < 2:
             tqdm.write(f" - adding accuracy / AUC combined score")
             add_combined_score(run)
+
+        if version < 3:
+            tqdm.write(f" - adding default approach config key")
+            add_default_approach(run)
 
         run.config['metrics_version'] = CURRENT_VERSION
 
