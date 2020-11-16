@@ -1,17 +1,21 @@
 from argparse import ArgumentParser
-
+import glob
 import matplotlib.pyplot as plt
 import numpy as np
 import os
+import re
 from sklearn import metrics
+import subprocess
+import tempfile
+import time
 from tqdm import tqdm
-
 import wandb
 import wandb.apis.public as wandb_api
+import warnings
 
 
 # TODO: sync with training script
-CURRENT_VERSION = 3
+CURRENT_VERSION = 4
 
 
 def histogram_to_preds(histogram):
@@ -86,29 +90,91 @@ def add_default_approach(run):
         run.config['approach'] = 'bnn'
 
 
+def add_checkpoint_artifact(run, api: wandb.Api, dry_run):
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        # Download checkpoints from Google Drive
+        cmd = ['rclone', 'copy', '--progress', f'drive:data/runs/{run.id}/checkpoints', tmp_dir]
+        subprocess.run(cmd, check=True)
+
+        artifacts = []
+        artifact_name = run.id
+        file_paths = glob.iglob(os.path.join(tmp_dir, '**/*.ckpt'), recursive=True)
+
+        for file_path in file_paths:
+            file_name = os.path.relpath(file_path, tmp_dir)
+
+            matches = re.match(r"^epoch=(\d+)(-.+)?\.ckpt$", file_name)
+            epoch = matches.group(1) if matches else None
+
+            if matches.group(2) is None:
+                metric_name = 'latest_epoch'
+                metric_value = epoch
+            else:
+                warnings.warn("Support for checkpoints tracking a metric has not been implemented yet, skipping.")
+                continue
+
+            metadata = dict(
+                file_name=file_name,
+                metric_name=metric_name,
+                metric_value=metric_value,
+                epoch=epoch
+            )
+
+            # Handle metrics with a slash in the name
+            metric_slug = metric_name.replace('/', '_')
+
+            artifact = wandb.Artifact(artifact_name, type='checkpoint', metadata=metadata)
+            artifact.add_file(file_path, name='checkpoint.ckpt')
+            wandb.log_artifact(artifact, aliases=[metric_slug])
+
+            artifacts.append((artifact, metric_slug))
+
+        # Wait until each artifact has been uploaded and link it to its run.
+        for artifact, metric_slug in artifacts:
+            name = f'{artifact.name}:{metric_slug}'
+            manifest = wait_pending_artifact(api, name, type='checkpoint')
+
+            if not dry_run:
+                run.log_artifact(manifest)
+
+
+def wait_pending_artifact(api: wandb.Api, name: str, type: str = None) -> wandb_api.Artifact:
+    while True:
+        try:
+            return api.artifact(name, type)
+        except wandb.errors.error.CommError:
+            # Back-off and retry
+            time.sleep(5)
+            pass
+
+
 def main():
     parser = ArgumentParser()
 
     group = parser.add_mutually_exclusive_group()
-    group.add_argument('--project', help="Path of the project, in the form entity_id/project_id.")
-    group.add_argument('--sweep', help="Path of the sweep to be processed, in the form entity_id/project_id/sweep_id.")
+    group.add_argument('--sweep', help="Select runs from the given sweep.")
+    group.add_argument('--tag', help="Select runs with the given tag.")
 
-    parser.add_argument('--tag', help="Only select runs with a certain tag.")
-
+    parser.add_argument('--project', help="Path of the project, in the form entity_id/project_id.")
     parser.add_argument('--dry-run', action='store_true',
                         help="Describe the changes without actually performing them.")
     args = parser.parse_args()
 
-    api = wandb.Api()
+    wandb.init(job_type='update_metrics', project=args.project)
+
+    overrides = {}
 
     if args.project:
-        filters = {}
+        overrides['project'] = args.project
 
-        if args.tag:
-            filters['tags'] = args.tag
+    api = wandb.Api(overrides)
 
-        runs = api.runs(args.project, filters=filters)
-        plots_dir = os.path.join('update_metrics', args.project)
+    if args.tag:
+        runs = api.runs(args.project, filters={
+            'tags': args.tag
+        })
+
+        plots_dir = os.path.join('update_metrics', args.tag)
     elif args.sweep:
         sweep: wandb_api.Sweep = api.sweep(args.sweep)
 
@@ -117,7 +183,7 @@ def main():
         runs = sweep.runs
         plots_dir = os.path.join('update_metrics', sweep.id)
     else:
-        raise ValueError("One of --project or --sweep must be provided.")
+        raise ValueError("One of --tag or --sweep must be provided.")
 
     run: wandb_api.Run
     for run in tqdm(runs):
@@ -141,6 +207,10 @@ def main():
         if version < 3:
             tqdm.write(f" - adding default approach config key")
             add_default_approach(run)
+
+        if version < 4:
+            tqdm.write(f" - adding checkpoint artifact")
+            add_checkpoint_artifact(run, api, args.dry_run)
 
         run.config['metrics_version'] = CURRENT_VERSION
 
