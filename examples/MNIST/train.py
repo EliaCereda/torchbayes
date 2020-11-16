@@ -58,44 +58,71 @@ class Task(pl.LightningModule):
     ]
 
     @classmethod
-    def add_model_args(cls, parser):
-        parser.add_argument('--lr', type=float,  default=1e-3,
+    def add_model_args(cls, args=None):
+        parser = ArgumentParser(add_help=False)
+        group = parser.add_argument_group('Model Hyper-Parameters')
+        group.add_argument('--lr', type=float,  default=1e-3,
                            help='Learning rate (default: %(default)s)')
-        parser.add_argument('--complexity_weight', choices=bnn.complexity_weights.choices, default='uniform',
-                           help='Complexity weight strategy (default: %(default)s)')
-
-        parser.add_argument('--approach', choices=['traditional', 'bnn'], default='bnn',
+        group.add_argument('--approach', choices=['traditional', 'bnn'], default='bnn',
                            help='Approach to NN training (default: %(default)s)')
-        parser.add_argument('--prior', choices=['normal', 'scale_mixture'], default='scale_mixture',
-                           help='Prior distribution (default: %(default)s)')
 
-        parser.add_argument('--sigma', type=float, default=0,
-                           help='Parameter -log σ for the normal prior (default: %(default)s)')
+        params, args = parser.parse_known_args(args)
 
-        parser.add_argument('--pi', type=float, default=0.5,
-                           help='Parameter π for the scale_mixture prior (default: %(default)s)')
-        parser.add_argument('--sigma1', type=float, default=0,
-                           help='Parameter -log σ1 for the scale_mixture prior (default: %(default)s)')
-        parser.add_argument('--sigma2', type=float, default=6,
-                           help='Parameter -log σ2 for the scale_mixture prior (default: %(default)s)')
+        cls.add_approach_args(parser, params.approach, args)
 
-        parser.add_argument('--val_samples', type=int, default=1,
-                           help='Number of networks to sample when computing validation metrics  (default: %(default)s)')
+        return parser
+
+    @classmethod
+    def add_approach_args(cls, parser, approach, args=None):
+        group = parser.add_argument_group(f"Approach '{approach}'")
+
+        if approach == 'traditional':
+            pass
+        elif approach == 'bnn':
+            group.add_argument('--complexity_weight', choices=bnn.complexity_weights.choices, default='uniform',
+                               help='Complexity weight strategy (default: %(default)s)')
+            group.add_argument('--val_samples', type=int, default=1,
+                               help='Number of networks to sample when computing validation metrics (default: %(default)s)')
+            group.add_argument('--prior', choices=['normal', 'scale_mixture'], default='scale_mixture',
+                               help='Prior distribution (default: %(default)s)')
+
+            params, args = parser.parse_known_args(args)
+
+            cls.add_prior_args(parser, params.prior, args)
+        else:
+            raise ValueError(f"Unsupported approach '{approach}'.")
+
+    @classmethod
+    def add_prior_args(cls, parser, prior, args=None):
+        group = parser.add_argument_group(f"Prior Distribution '{prior}'")
+
+        if prior == 'normal':
+            group.add_argument('--sigma', type=float, default=0,
+                               help='Parameter -log σ for the normal prior (default: %(default)s)')
+        elif prior == 'scale_mixture':
+            group.add_argument('--pi', type=float, default=0.5,
+                               help='Parameter π for the scale_mixture prior (default: %(default)s)')
+            group.add_argument('--sigma1', type=float, default=0,
+                               help='Parameter -log σ1 for the scale_mixture prior (default: %(default)s)')
+            group.add_argument('--sigma2', type=float, default=6,
+                               help='Parameter -log σ2 for the scale_mixture prior (default: %(default)s)')
+        else:
+            raise ValueError(f"Unsupported prior distribution '{prior}'.")
 
     def __init__(self, config):
         super().__init__()
 
-        hparams = {key: getattr(config, key) for key in self.config_keys}
+        hparams = {key: getattr(config, key, None) for key in self.config_keys}
         self.save_hyperparameters(hparams)
 
         self.model = Model(
             [1, 28, 28], 10,
             approach=self.hparams.approach,
             prior=self.hparams.prior,
-            sigma=math.exp(self.hparams.sigma),
+            sigma=self.hparams.sigma,
             pi=self.hparams.pi,
-            sigma1=math.exp(-self.hparams.sigma1),
-            sigma2=math.exp(-self.hparams.sigma2)
+            sigma1=self.hparams.sigma1,
+            sigma2=self.hparams.sigma2
         )
 
         self.complexity_weight = bnn.complexity_weights(self.hparams.complexity_weight)
@@ -290,12 +317,13 @@ def log_checkpoints(trainer, save=False, log=True):
 
 
 def main():
-    parser = ArgumentParser()
-    parser = Trainer.add_argparse_args(parser)
+    parser = ArgumentParser(parents=[
+        Trainer.add_argparse_args(ArgumentParser(add_help=False)),
+        MNISTData.add_data_args(),
+        Task.add_model_args(),
+    ])
     parser.add_argument('--save_checkpoints', action='store_true',
                         help="Store the model checkpoints to WandB (default: %(default)s)")
-    Task.add_model_args(parser.add_argument_group('Model Hyper-Parameters'))
-    MNISTData.add_data_args(parser.add_argument_group('Data Parameters'))
     args = parser.parse_args()
 
     callbacks = [

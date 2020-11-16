@@ -22,11 +22,15 @@ class MNISTData(pl.LightningDataModule):
     ]
 
     @classmethod
-    def add_data_args(cls, parser):
-        parser.add_argument('--data_dir', default=os.path.join(os.getcwd(), 'data'),
+    def add_data_args(cls):
+        parser = ArgumentParser(add_help=False)
+        group = parser.add_argument_group('Data Parameters')
+        group.add_argument('--data_dir', default=os.path.join(os.getcwd(), 'data'),
                            help='Location of downloaded datasets (default: %(default)s)')
-        parser.add_argument('--batch_size', type=int, default=128,
+        group.add_argument('--batch_size', type=int, default=128,
                            help='Batch size (default: %(default)s)')
+
+        return parser
 
     def __init__(self, config):
         super().__init__()

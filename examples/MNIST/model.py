@@ -34,17 +34,18 @@ class Model(bnn.BayesModel, nn.Sequential):
 
     def init_parameters(self, prior, sigma, pi, sigma1, sigma2):
         if prior == 'normal':
+            # FIXME: should've been exp(-sigma), experiments don't really compare between normal and scale_mixture.
             self.apply(bnn.init_priors(
-                Normal, loc=0.0, scale=sigma
+                Normal, loc=0.0, scale=math.exp(sigma)
             ))
         elif prior == 'scale_mixture':
             self.apply(bnn.init_priors(
-                ScaleMixtureNormal, pi=pi, sigma1=sigma1, sigma2=sigma2
+                ScaleMixtureNormal, pi=pi, sigma1=math.exp(-sigma1), sigma2=math.exp(-sigma2)
             ))
         else:
             raise ValueError(f"Unsupported prior distribution '{prior}'.")
 
-        # FIXME: does not make sense as it is
+        # FIXME: does not make sense as it is.
         # self.apply(bnn.init_posteriors(
         #     Normal, loc=Normal(0.0, 0.01), scale=Normal(math.exp(-2), 0.01)
         # ))

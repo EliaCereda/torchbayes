@@ -21,8 +21,9 @@ def generate_splits(dataset, splits, out_file):
 def main():
     parser = ArgumentParser(description='''
         Generate train/validation splits for the MNIST and FashionMNIST datasets.
-    ''')
-    MNISTData.add_data_args(parser.add_argument_group('Data Parameters'))
+    ''', parents=[
+        MNISTData.add_data_args()
+    ])
     args = parser.parse_args()
 
     splits_sizes = {
