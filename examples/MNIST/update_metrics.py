@@ -139,6 +139,7 @@ def add_checkpoint_artifact(run, api: wandb.Api, dry_run):
 
 
 def wait_pending_artifact(api: wandb.Api, name: str, type: str = None) -> wandb_api.Artifact:
+    # Source: https://github.com/wandb/client/issues/1486
     while True:
         try:
             return api.artifact(name, type)

@@ -51,10 +51,10 @@ class Task(pl.LightningModule):
     config_keys = [
         'lr', 'approach',
         'complexity_weight',
+        'val_samples',
         'prior',
         'sigma',
         'pi', 'sigma1', 'sigma2',
-        'val_samples',
     ]
 
     @classmethod
