@@ -49,7 +49,7 @@ class MNISTData(pl.LightningDataModule):
     def setup(self, stage=None):
         self.transform = transforms.ToTensor()
 
-        if stage == 'fit':
+        if stage == 'fit' or stage == 'validation':
             # Access wandb through WandbLogger, which triggers wandb.init(...) if necessary.
             run = self.trainer.logger.experiment
 

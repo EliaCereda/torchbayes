@@ -1,5 +1,5 @@
 import math
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Namespace
 
 import numpy as np
 
@@ -8,6 +8,7 @@ import os
 import pytorch_lightning as pl
 import pytorch_lightning.loggers
 from pytorch_lightning import Trainer
+from pytorch_lightning.utilities import AttributeDict
 
 import re
 
@@ -18,6 +19,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from torchbayes import bnn
+
+from typing import overload, Union, Dict, Any
 
 import wandb
 
@@ -50,9 +53,7 @@ def heterogeneous_transpose(x, stack=None):
 class Task(pl.LightningModule):
     config_keys = [
         'lr', 'approach',
-        'complexity_weight',
-        'val_samples',
-        'prior',
+        'complexity_weight', 'val_samples', 'prior',
         'sigma',
         'pi', 'sigma1', 'sigma2',
     ]
@@ -109,10 +110,31 @@ class Task(pl.LightningModule):
         else:
             raise ValueError(f"Unsupported prior distribution '{prior}'.")
 
-    def __init__(self, config):
+    @overload
+    def __init__(self, hparams: Union[Dict[str, Any], Namespace, AttributeDict]):
+        ...
+
+    @overload
+    def __init__(self, **_kwargs):
+        """
+        Private initializer, do not call directly.
+        
+        It is used to load the hyperparameters from old checkpoints, which
+        didn't store the name of hparams argument correctly.
+        """
+        ...
+
+    def __init__(self, hparams=None, **_kwargs):
         super().__init__()
 
-        hparams = {key: getattr(config, key, None) for key in self.config_keys}
+        if hparams is None:
+            hparams = _kwargs
+
+        if isinstance(hparams, Namespace):
+            hparams = vars(hparams)
+
+        hparams = {key: hparams.get(key, None) for key in self.config_keys}
+
         self.save_hyperparameters(hparams)
 
         self.model = Model(

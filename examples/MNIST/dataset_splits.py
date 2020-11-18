@@ -22,7 +22,7 @@ def main():
     parser = ArgumentParser(description='''
         Generate train/validation splits for the MNIST and FashionMNIST datasets.
     ''', parents=[
-        MNISTData.add_data_args()
+        MNISTData.add_data_args(),
     ])
     args = parser.parse_args()
 

@@ -11,10 +11,10 @@ class Model(bnn.BayesModel, nn.Sequential):
     """Architecture used by [Blundell'15] for the experiments on MNIST."""
 
     def __init__(self, in_shape, out_features, approach, **kwargs):
-        if approach == 'traditional':
-            Linear = nn.Linear
-        elif approach == 'bnn':
+        if approach == 'bnn' or approach is None:
             Linear = bnn.BayesLinear
+        elif approach == 'traditional':
+            Linear = nn.Linear
         else:
             raise ValueError(f"Unsupported approach '{approach}'.")
 
