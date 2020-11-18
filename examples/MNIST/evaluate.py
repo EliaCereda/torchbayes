@@ -3,6 +3,7 @@ import pytorch_lightning as pl
 import pytorch_lightning.loggers
 from pytorch_lightning import Trainer
 import torch
+import wandb
 
 from train import Task
 from data import MNISTData
@@ -20,8 +21,16 @@ def main():
     logger = pl.loggers.WandbLogger(job_type='evaluate')
     trainer: Trainer = Trainer.from_argparse_args(args, logger=logger)
 
-    wandb = logger.experiment
-    checkpoint_path = wandb.use_artifact(args.checkpoint, type='checkpoint').file()
+    evaluate_run = logger.experiment
+    artifact = evaluate_run.use_artifact(args.checkpoint, type='checkpoint')
+    checkpoint_path = artifact.file()
+
+    api = wandb.Api()
+    train_id = artifact.name.split(':')[0]
+    train_run = api.run(f'{artifact.entity}/{artifact.project}/{train_id}')
+    evaluate_run.notes = f'''
+        Training Run: {train_run.url}
+    '''
 
     # Load the model to CPU memory, then leave it to Trainer to move it to the
     # device that will be used for evaluation.
