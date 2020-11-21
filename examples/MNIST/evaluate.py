@@ -29,7 +29,7 @@ def main():
     train_id = artifact.name.split(':')[0]
     train_run = api.run(f'{artifact.entity}/{artifact.project}/{train_id}')
     evaluate_run.notes = f'''
-        Training Run: {train_run.url}
+        Training Run: {train_run.name} ({train_run.url})
     '''
 
     # Load the model to CPU memory, then leave it to Trainer to move it to the
