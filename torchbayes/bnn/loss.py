@@ -8,6 +8,10 @@ from typing import Callable
 from .core import BayesParameter
 
 
+def _zero(_batch_idx: int, _n_batches: int) -> float:
+    return 0.0
+
+
 def _uniform(_batch_idx: int, n_batches: int) -> float:
     return 1 / n_batches
 
@@ -20,10 +24,11 @@ def complexity_weights(name: str) -> Callable[[int, int], float]:
     return complexity_weights.choices[name]
 
 
-complexity_weights.choices = dict(
-    uniform=_uniform,
-    exp_decay=_exp_decay,
-)
+complexity_weights.choices = {
+    None: _zero,
+    'uniform': _uniform,
+    'exp_decay': _exp_decay,
+}
 
 
 def entropy(probs, dim=-1):

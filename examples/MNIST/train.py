@@ -211,8 +211,9 @@ class Task(pl.LightningModule):
 
         # Sample `val_samples` networks from the posterior distribution of the model
         # and compute the predictions of each one.
+        val_samples = self.hparams.val_samples or 1
         outputs = []
-        for sample_idx in range(self.hparams.val_samples):
+        for sample_idx in range(val_samples):
             out = self._validation_step_sample(inputs, targets, sample_idx, batch_idx, dl_idx)
             outputs.append(out)
 
