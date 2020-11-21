@@ -2,6 +2,7 @@ from argparse import ArgumentParser
 import pytorch_lightning as pl
 import pytorch_lightning.loggers
 from pytorch_lightning import Trainer
+import sys
 import torch
 import wandb
 
@@ -20,6 +21,11 @@ def main():
 
     logger = pl.loggers.WandbLogger(job_type='evaluate')
     trainer: Trainer = Trainer.from_argparse_args(args, logger=logger)
+
+    if not hasattr(trainer, 'validate'):
+        print("Trainer.validate is not available in your version of PyTorch Lighting.", file=sys.stderr)
+        print("Check this pull request for updates: https://github.com/PyTorchLightning/pytorch-lightning/pull/4707", file=sys.stderr)
+        exit(1)
 
     evaluate_run = logger.experiment
     artifact = evaluate_run.use_artifact(args.checkpoint, type='checkpoint')
