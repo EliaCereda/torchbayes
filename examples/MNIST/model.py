@@ -11,8 +11,10 @@ class Model(bnn.BayesModel, nn.Sequential):
     """Architecture used by [Blundell'15] for the experiments on MNIST."""
 
     def __init__(self, in_shape, out_features, **kwargs):
-        approach = kwargs.get('approach')
-        if approach == 'bnn' or approach is None:
+        # Must handle both a missing approach key and an approach key set to None
+        approach = kwargs.pop('approach', None) or 'bnn'
+
+        if approach == 'bnn':
             Linear = bnn.BayesLinear
         elif approach == 'traditional':
             Linear = nn.Linear
@@ -31,7 +33,7 @@ class Model(bnn.BayesModel, nn.Sequential):
             Linear(1200, out_features),
         )
 
-        self.init_parameters(**kwargs)
+        self.init_parameters(approach=approach, **kwargs)
 
     def init_parameters(self, approach, prior, sigma, pi, sigma1, sigma2):
         if approach == 'bnn':

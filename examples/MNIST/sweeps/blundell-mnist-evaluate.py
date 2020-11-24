@@ -15,11 +15,14 @@ def main():
         'tags': args.tag
     })
 
+    print(f"Selected {len(runs)} runs to evaluate...")
+
     checkpoints = [f'{run.id}:latest_epoch' for run in runs]
 
     sweep_config = {
         "name": "blundell-mnist-evaluate",
         "description": "Run evaluate.py on a set of runs",
+        "program": "../../examples/MNIST/evaluate.py",
         "method": "grid",
         "parameters": {
             "checkpoint": {
@@ -36,7 +39,7 @@ def main():
         ]
     }
 
-    sweep_id = wandb.sweep(sweep_config)
+    sweep_id = wandb.sweep(sweep_config, project=args.project)
 
 
 if __name__ == '__main__':
