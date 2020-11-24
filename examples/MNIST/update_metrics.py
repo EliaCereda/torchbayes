@@ -93,7 +93,7 @@ def add_default_approach(run):
 def add_checkpoint_artifact(run, api: wandb.Api, dry_run):
     with tempfile.TemporaryDirectory() as tmp_dir:
         # Download checkpoints from Google Drive
-        cmd = ['rclone', 'copy', '--progress', f'drive:data/runs/{run.id}/checkpoints', tmp_dir]
+        cmd = ['rclone', 'copy', f'drive:data/runs/{run.id}/checkpoints', tmp_dir]
         subprocess.run(cmd, check=True)
 
         artifacts = []
@@ -197,26 +197,30 @@ def main():
         tqdm.write(f" - URL {run.url}")
         tqdm.write(f" - current metrics version v{version}")
 
-        if version < 1:
-            tqdm.write(f" - adding entropy discrimination ROC curve")
-            add_entropy_roc(run, plots_dir)
+        try:
+            if version < 1:
+                tqdm.write(f" - adding entropy discrimination ROC curve")
+                add_entropy_roc(run, plots_dir)
 
-        if version < 2:
-            tqdm.write(f" - adding accuracy / AUC combined score")
-            add_combined_score(run)
+            if version < 2:
+                tqdm.write(f" - adding accuracy / AUC combined score")
+                add_combined_score(run)
 
-        if version < 3:
-            tqdm.write(f" - adding default approach config key")
-            add_default_approach(run)
+            if version < 3:
+                tqdm.write(f" - adding default approach config key")
+                add_default_approach(run)
 
-        if version < 4:
-            tqdm.write(f" - adding checkpoint artifact")
-            add_checkpoint_artifact(run, api, args.dry_run)
+            if version < 4:
+                tqdm.write(f" - adding checkpoint artifact")
+                add_checkpoint_artifact(run, api, args.dry_run)
 
-        run.config['metrics_version'] = CURRENT_VERSION
+            run.config['metrics_version'] = CURRENT_VERSION
 
-        if not args.dry_run:
-            run.update()
+            if not args.dry_run:
+                run.update()
+
+        except Exception as e:
+            tqdm.write(f" - ERROR: {e}")
 
 
 if __name__ == '__main__':
