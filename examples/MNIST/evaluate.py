@@ -15,7 +15,7 @@ def main():
         Trainer.add_argparse_args(ArgumentParser(add_help=False)),
         MNISTData.add_data_args(),
     ])
-    parser.add_argument('checkpoint',
+    parser.add_argument('--checkpoint',
                         help='W&B artifact name of the checkpoint to be loaded.')
     args = parser.parse_args()
 
