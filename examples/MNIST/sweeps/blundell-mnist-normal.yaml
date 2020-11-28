@@ -23,4 +23,5 @@ command:
   - ${program}
   - "--gpus"
   - 1
+  - "--save_checkpoints"
   - ${args}

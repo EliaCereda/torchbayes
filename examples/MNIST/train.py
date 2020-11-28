@@ -229,24 +229,25 @@ class Task(pl.LightningModule):
             self.val_accuracy.update(preds, targets)
 
         # Log a certain number of predictions to wandb for debugging.
-        n_images = 8
-        if batch_idx == 0:
-            images = []
-            for tensors in take(zip(inputs, targets, preds, entropy), n_images):
-                input, target, pred, ent = map(lambda x: x.squeeze().cpu(), tensors)
-                caption = f'target: {target}, prediction: {pred}, entropy: {ent:.3f}'
-
-                correctness_mask = dict(
-                    mask_data=np.full_like(input, 0 if target == pred else 1),
-                    class_labels={0: 'correct', 1: 'wrong'}
-                )
-                masks = {
-                    'correctness': correctness_mask,
-                }
-                image = wandb.Image(input, caption=caption, masks=masks)
-                images.append(image)
-
-            self.logger.experiment.log({f'valid/predictions/{ds}': images}, commit=False)
+        # TODO: add a flag to control this
+        # n_images = 8
+        # if batch_idx == 0:
+        #     images = []
+        #     for tensors in take(zip(inputs, targets, preds, entropy), n_images):
+        #         input, target, pred, ent = map(lambda x: x.squeeze().cpu(), tensors)
+        #         caption = f'target: {target}, prediction: {pred}, entropy: {ent:.3f}'
+        #
+        #         correctness_mask = dict(
+        #             mask_data=np.full_like(input, 0 if target == pred else 1),
+        #             class_labels={0: 'correct', 1: 'wrong'}
+        #         )
+        #         masks = {
+        #             'correctness': correctness_mask,
+        #         }
+        #         image = wandb.Image(input, caption=caption, masks=masks)
+        #         images.append(image)
+        #
+        #     self.logger.experiment.log({f'valid/predictions/{ds}': images}, commit=False)
 
         return loss, complexity, likelihood, entropy
 
