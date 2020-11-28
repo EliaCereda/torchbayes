@@ -7,13 +7,13 @@ parameters:
   min_epochs:
     value: 20
   lr:
-    values: [1e-3, 1e-4, 1e-5]
+    values: [1e-3, 1e-4]
   complexity_weight:
     values: ['uniform', 'exp_decay']
   prior:
     value: 'normal'
   sigma:
-    values: [0, 1, 2, 3, 4]
+    values: [-4, -3, -2, -1, 0, 1, 2, 3, 4]
   val_samples:
     values: [1, 2, 5, 10, 30, 50]
 
