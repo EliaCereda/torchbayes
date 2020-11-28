@@ -5,14 +5,14 @@ import wandb
 
 def main():
     parser = ArgumentParser()
-    parser.add_argument('--tag', help="Select runs with the given tag.")
+    parser.add_argument('--tag', action="extend", nargs="+", help="Select runs with any of the given tags.")
     parser.add_argument('--project', help="Path of the project, in the form entity_id/project_id.")
     args = parser.parse_args()
 
     api = wandb.Api()
 
     runs = api.runs(args.project, filters={
-        'tags': args.tag
+        'tags': {'$in': args.tag}
     })
 
     print(f"Selected {len(runs)} runs to evaluate...")
