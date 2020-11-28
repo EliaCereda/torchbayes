@@ -86,7 +86,8 @@ def add_combined_score(run):
 
 
 def add_default_approach(run):
-    if 'approach' not in run.config:
+    approach = run.config.get('approach')
+    if not approach or approach == 'None':
         run.config['approach'] = 'bnn'
 
 
@@ -181,7 +182,10 @@ def main():
 
         print(f"Processing sweep {sweep.url}")
 
-        runs = sweep.runs
+        runs = api.runs(sweep.project, filters={
+            'sweep': sweep.id
+        })
+
         plots_dir = os.path.join('update_metrics', sweep.id)
     else:
         raise ValueError("One of --tag or --sweep must be provided.")
