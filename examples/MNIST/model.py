@@ -38,7 +38,7 @@ class Model(bnn.BayesModel, nn.Sequential):
     def init_parameters(self, approach, prior, sigma, pi, sigma1, sigma2):
         if approach == 'bnn':
             if prior == 'normal':
-                # FIXME: should've been exp(-sigma), experiments don't really compare between normal and scale_mixture.
+                # FIXME: should've been exp(-sigma) for consistency with scale_mixture.
                 self.apply(bnn.init_priors(
                     Normal, loc=0.0, scale=math.exp(sigma)
                 ))
