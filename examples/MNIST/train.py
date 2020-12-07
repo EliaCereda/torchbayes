@@ -19,6 +19,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from torchbayes import bnn
+from torchbayes.utils import take, heterogeneous_transpose
 
 from typing import overload, Union, Dict, Any
 
@@ -28,30 +29,8 @@ from model import Model
 from data import MNISTData
 
 
-# FIXME: move to proper utils file
-def take(it, n):
-    for x, _ in zip(it, range(n)):
-        yield x
-
-
-def heterogeneous_transpose(x, stack=None):
-    transposed = np.asarray(x, dtype=object).T
-    slices = []
-
-    for slice in transposed:
-        # Assumes that if the first element is zero-rank, then all are.
-        if stack or (stack is None and len(slice) > 0 and slice[0].ndim == 0):
-            slice = torch.stack(list(slice))
-        else:
-            slice = torch.cat(list(slice))
-
-        slices.append(slice)
-
-    return slices
-
-
 class Task(pl.LightningModule):
-    config_keys = [
+    hparam_keys = [
         'lr', 'approach',
         'complexity_weight', 'val_samples', 'prior',
         'sigma',
@@ -133,7 +112,7 @@ class Task(pl.LightningModule):
         if isinstance(hparams, Namespace):
             hparams = vars(hparams)
 
-        hparams = {key: hparams.get(key, None) for key in self.config_keys}
+        hparams = {key: hparams.get(key, None) for key in self.hparam_keys}
 
         self.save_hyperparameters(hparams)
 
