@@ -65,6 +65,8 @@ class RegressionData(pl.LightningDataModule):
                 .uniform_(*self.hparams.train_range)
             y = self.noisy_function(x)
 
+        y = torch.cat([y, -y], dim=-1)
+
         return x, y
 
     def train_dataloader(self) -> data.DataLoader:
@@ -92,6 +94,8 @@ class RegressionData(pl.LightningDataModule):
         train = self.train_set()
         validation = self.validation_set()
 
+        train = train[0].expand_as(train[1]), train[1]
+
         plt.ion()
         plt.figure(0, clear=True)
 
@@ -99,13 +103,14 @@ class RegressionData(pl.LightningDataModule):
         groundtruth, = plt.plot(*validation, linewidth=3)
         train = plt.scatter(*train, marker='.', c='k')
 
+        valid = []
         if validation_preds is not None:
             x, _ = validation
             y = validation_preds
 
-            valid = plt.plot(x, y, linewidth=0.5)
+            valid = plt.plot(x, y, c='C1', linewidth=0.5)
 
-        plt.legend([groundtruth, train, valid[0]], ["Ground truth", "Training set", "Predicted functions"])
+        plt.legend([groundtruth, train] + valid[:1], ["Ground truth", "Training set", "Predicted functions"])
         plt.show()
         plt.pause(0.010)
 
@@ -128,6 +133,9 @@ def main():
 
     # Visualize the generated dataset
     data.visualize()
+
+    plt.ioff()
+    plt.show()
 
 
 if __name__ == '__main__':

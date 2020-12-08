@@ -16,6 +16,29 @@ from model import Model
 from data import RegressionData
 
 
+class CauchyLoss(nn.Module):
+    def __init__(self, c=0.1, reduction='mean'):
+        super().__init__()
+
+        self.c = c
+
+        if reduction == 'none':
+            self.reduce = lambda x: x
+        elif reduction == 'mean':
+            self.reduce = torch.mean
+        elif reduction == 'sum':
+            self.reduce = torch.sum
+        else:
+            raise ValueError(f"Unsupported reduction value '{reduction}'.")
+
+    def forward(self, input: torch.Tensor, target: torch.Tensor):
+        delta = input - target
+        loss = torch.log1p(0.5 * (delta / self.c) ** 2)
+        loss = self.reduce(loss)
+
+        return loss
+
+
 class Task(pl.LightningModule):
     hparam_keys = [
         'lr', 'val_samples'
@@ -45,7 +68,7 @@ class Task(pl.LightningModule):
 
         self.complexity_weight = bnn.complexity_weights('uniform')
         self.complexity = bnn.ComplexityCost(self.model)
-        self.likelihood = nn.MSELoss(reduction='sum')
+        self.likelihood = CauchyLoss(reduction='sum')
 
     @property
     def _n_train_batches(self):
@@ -139,6 +162,7 @@ def main():
     data = RegressionData(args)
 
     try:
+        trainer.validate(task, datamodule=data)
         trainer.fit(task, data)
     except InterruptedError:
         pass
