@@ -1,4 +1,4 @@
-from .scale_mixture import *
+from .scale_mixture import NormalNonSingular, ScaleMixtureNormal
 
 __all__ = [
     "NormalNonSingular",

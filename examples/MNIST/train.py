@@ -113,7 +113,6 @@ class Task(pl.LightningModule):
             hparams = vars(hparams)
 
         hparams = {key: hparams.get(key, None) for key in self.hparam_keys}
-
         self.save_hyperparameters(hparams)
 
         self.model = Model(

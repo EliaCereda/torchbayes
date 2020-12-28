@@ -6,7 +6,7 @@ from torch.distributions import Normal
 from torchbayes import bnn
 
 
-class Model(bnn.BayesModel, nn.Sequential):
+class Model(nn.Sequential, bnn.BayesModel):
     def __init__(self, in_size, out_features):
         Linear = bnn.BayesLinear
         # Linear = nn.Linear

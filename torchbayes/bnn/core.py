@@ -55,6 +55,26 @@ class _DistributionWrapper(nn.Module):
 
 
 class BayesModel(nn.Module):
+    """
+    Base class for models containing Bayes by Backprop layers.
+
+    Normally, only the top level model class needs to inherit from `BayesModel`.
+    Multiple inheritance is supported with any `nn.Module` subclass, which should
+    come first in the inheritance order::
+
+        class Model(nn.Sequential, bnn.BayesModel):
+            def __init__(self, in_features, out_features):
+                super().__init__(
+                    bnn.BayesLinear(in_features, 5),
+                    nn.ReLU(),
+
+                    bnn.BayesLinear(5, 5),
+                    nn.ReLU(),
+
+                    bnn.BayesLinear(5, out_features),
+                )
+    """
+
     def sample_(self: nn.Module):
         self.apply(BayesModel.sample_parameters_)
 

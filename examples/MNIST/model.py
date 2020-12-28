@@ -7,7 +7,7 @@ from torchbayes import bnn
 from torchbayes.distributions import ScaleMixtureNormal
 
 
-class Model(bnn.BayesModel, nn.Sequential):
+class Model(nn.Sequential, bnn.BayesModel):
     """Architecture used by [Blundell'15] for the experiments on MNIST."""
 
     def __init__(self, in_shape, out_features, **kwargs):
