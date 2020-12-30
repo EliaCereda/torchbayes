@@ -43,3 +43,18 @@ def heterogeneous_transpose(x, stack=None, dim=0):
         slices.append(slice)
 
     return slices
+
+
+### Helper functions from PyTorch
+
+def _ntuple(n):
+    def parse(x):
+        if isinstance(x, Iterable):
+            return x
+
+        return tuple(repeat(x, n))
+
+
+_single = _ntuple(1)
+_pair = _ntuple(2)
+_triple = _ntuple(3)
