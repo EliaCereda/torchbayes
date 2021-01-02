@@ -1,6 +1,7 @@
-# TODO: move to proper utils files
+from itertools import repeat
 import numpy as np
 import torch
+from typing import Iterable
 
 
 def take(it, n):
@@ -53,6 +54,8 @@ def _ntuple(n):
             return x
 
         return tuple(repeat(x, n))
+
+    return parse
 
 
 _single = _ntuple(1)
