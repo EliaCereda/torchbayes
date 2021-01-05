@@ -48,10 +48,12 @@ class ComplexityCost(nn.Module):
         self._params = list(filter(self._is_param, modules))
 
     def forward(self):
-        return sum(
-            (self._mc_kl_divergence(param) for param in self._params),
-            torch.tensor(0.0)
-        )
+        if len(self._params) == 0:
+            return torch.tensor(0.0)
+
+        return torch.stack([
+            self._mc_kl_divergence(param) for param in self._params
+        ]).mean()
 
     @staticmethod
     def _is_param(module: nn.Module):
@@ -61,4 +63,4 @@ class ComplexityCost(nn.Module):
     def _mc_kl_divergence(param: BayesParameter) -> Tensor:
         """TODO: revisit the name"""
         current_sample = param()
-        return (param.posterior.log_prob(current_sample) - param.prior.log_prob(current_sample)).sum()
+        return (param.posterior.log_prob(current_sample) - param.prior.log_prob(current_sample)).mean()
