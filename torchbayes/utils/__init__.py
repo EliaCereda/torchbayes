@@ -1,3 +1,4 @@
+from collections import defaultdict
 from itertools import repeat
 import numpy as np
 import torch
@@ -45,6 +46,17 @@ def heterogeneous_transpose(x, stack=None, dim=0):
 
     return slices
 
+def heterogeneous_transpose_dict(samples):
+    output = defaultdict(lambda: list())
+
+    for sample in samples:
+        for key in sample.keys():
+            output[key].append(sample[key])
+
+    for key in output.keys():
+        output[key] = np.stack(output[key])
+
+    return output
 
 ### Helper functions from PyTorch
 
