@@ -56,6 +56,8 @@ def heterogeneous_transpose_dict(samples):
     for key in output.keys():
         output[key] = np.stack(output[key])
 
+    output = dict(output)
+
     return output
 
 ### Helper functions from PyTorch
