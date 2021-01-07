@@ -41,26 +41,35 @@ def entropy(probs, dim=-1):
 
 
 class ComplexityCost(nn.Module):
-    def __init__(self, model: nn.Module):
+    def __init__(self, model: nn.Module, reduction='sum'):
         super().__init__()
 
         modules = model.modules()
         self._params = list(filter(self._is_param, modules))
 
+        if reduction == 'none':
+            self.reduce = lambda x: x
+        elif reduction == 'mean':
+            # TODO: determine whether taking the mean makes any sense
+            self.reduce = torch.mean
+        elif reduction == 'sum':
+            self.reduce = torch.sum
+        else:
+            raise ValueError(f"Unsupported reduction value '{reduction}'.")
+
     def forward(self):
         if len(self._params) == 0:
             return torch.tensor(0.0)
 
-        return torch.stack([
+        return self.reduce(torch.stack([
             self._mc_kl_divergence(param) for param in self._params
-        ]).mean()
+        ]))
 
     @staticmethod
     def _is_param(module: nn.Module):
         return isinstance(module, BayesParameter)
 
-    @staticmethod
-    def _mc_kl_divergence(param: BayesParameter) -> Tensor:
+    def _mc_kl_divergence(self, param: BayesParameter) -> Tensor:
         """TODO: revisit the name"""
         current_sample = param()
-        return (param.posterior.log_prob(current_sample) - param.prior.log_prob(current_sample)).mean()
+        return self.reduce(param.posterior.log_prob(current_sample) - param.prior.log_prob(current_sample))
