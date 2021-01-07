@@ -41,7 +41,7 @@ def entropy(probs, dim=-1):
 
 
 class ComplexityCost(nn.Module):
-    def __init__(self, model: nn.Module, reduction='sum'):
+    def __init__(self, model: nn.Module, reduction=None):
         super().__init__()
 
         modules = model.modules()
@@ -52,7 +52,7 @@ class ComplexityCost(nn.Module):
         elif reduction == 'mean':
             # TODO: determine whether taking the mean makes any sense
             self.reduce = torch.mean
-        elif reduction == 'sum':
+        elif reduction == 'sum' or reduction is None:
             self.reduce = torch.sum
         else:
             raise ValueError(f"Unsupported reduction value '{reduction}'.")
