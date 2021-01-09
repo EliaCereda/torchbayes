@@ -18,6 +18,18 @@ class NormalNonSingular(Distribution):
     mu: torch.Tensor
     rho: torch.Tensor
 
+    @property
+    def mean(self):
+        return self.mu
+
+    @property
+    def stddev(self):
+        return torch.log1p(torch.exp(self.rho))
+
+    @property
+    def variance(self):
+        return self.stddev ** 2
+
     def __init__(self, mu, rho, validate_args=None):
         self.mu, self.rho = broadcast_all(mu, rho)
 
@@ -34,7 +46,7 @@ class NormalNonSingular(Distribution):
 
     def rsample(self, sample_shape=torch.Size()):
         shape = self._extended_shape(sample_shape)
-        sigma = torch.log1p(torch.exp(self.rho))
+        sigma = self.stddev
         eps = _standard_normal(shape, dtype=self.mu.dtype, device=self.mu.device)
         return self.mu + sigma * eps
 
@@ -42,7 +54,7 @@ class NormalNonSingular(Distribution):
         if self._validate_args:
             self._validate_sample(value)
 
-        sigma = torch.log1p(torch.exp(self.rho))
+        sigma = self.stddev
         return -0.5 * ((value - self.mu) / sigma) ** 2 - sigma.log() - 0.5 * math.log(2 * math.pi)
 
 
