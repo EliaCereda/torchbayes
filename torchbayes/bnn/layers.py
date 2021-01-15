@@ -121,9 +121,10 @@ class BayesConv2dFlipout(BayesConv2d):
     def forward(self, input: Tensor) -> Tensor:
         if self.padding_mode == 'zeros':
             batch_size = input.shape[0]
+            device = input.device
 
-            r = randsign((batch_size, self.out_channels, 1, 1))
-            s = randsign((batch_size, self.in_channels, 1, 1))
+            r = randsign((batch_size, self.out_channels, 1, 1), device=device)
+            s = randsign((batch_size, self.in_channels, 1, 1), device=device)
 
             weight_mean, weight_stdev, weight_eps = self.weight._sample_state
             weight_delta = weight_stdev * weight_eps
@@ -137,10 +138,11 @@ class BayesConv2dFlipout(BayesConv2d):
                 "Support for non-zeros padding modes in BayesConv2dFlipout has not been implemented yet."
             )
 
-def randsign(shape: SizeLike):
-    # Sample a Bernoullian with the same shape as the desired output
-    p = torch.tensor(0.5).expand(*shape)
-    out = torch.bernoulli(p)
+def randsign(shape: SizeLike, dtype=None, device=None):
+    # Sample a Bernoullian with the desired output shape
+    out = torch\
+        .empty(shape, dtype=dtype, device=device)\
+        .bernoulli_()
 
     # Rescale the Bernoullian values from {0, 1} to {-1, +1}
     out = 2 * out - 1
