@@ -8,6 +8,7 @@ __all__ = [
     'BayesModel',
 
     'BayesLinear',
+    'BayesLinearFlipout',
     'BayesConv2d',
     'BayesConv2dFlipout',
     

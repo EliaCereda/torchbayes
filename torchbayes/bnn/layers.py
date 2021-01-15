@@ -12,6 +12,9 @@ class BayesLinear(nn.Module):
     def __init__(self, in_features: int, out_features: int):
         super().__init__()
 
+        self.in_features = in_features
+        self.out_features = out_features
+
         self.weight = BayesParameter(shape=(out_features, in_features))
         self.bias = BayesParameter(shape=(out_features,))
 
@@ -108,6 +111,30 @@ class BayesConv2d(_BayesConvNd):
             raise NotImplementedError(
                 "Support for non-zeros padding modes in BayesConv2d has not been implemented yet."
             )
+
+
+class BayesLinearFlipout(BayesLinear):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        assert isinstance(self.weight.posterior, NormalNonSingular), \
+            "Only NormalNonSingular posteriors are supported by BayesLinearFlipout."
+        self.weight.rsample_state = True
+        
+    def forward(self, input: Tensor) -> Tensor:
+        batch_size = input.shape[0]
+        device = input.device
+
+        r = randsign((batch_size, self.out_features), device=device)
+        s = randsign((batch_size, self.in_features), device=device)
+
+        weight_mean, weight_stdev, weight_eps = self.weight._sample_state
+        weight_delta = weight_stdev * weight_eps
+
+        output = F.linear(input, weight_mean, self.bias())
+        output += F.linear(input * s, weight_delta, None) * r
+
+        return output
 
 
 class BayesConv2dFlipout(BayesConv2d):
