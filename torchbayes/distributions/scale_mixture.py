@@ -44,11 +44,18 @@ class NormalNonSingular(Distribution):
         new._validate_args = self._validate_args
         return new
 
-    def rsample(self, sample_shape=torch.Size()):
+    def rsample_state(self, sample_shape=torch.Size()):
         shape = self._extended_shape(sample_shape)
-        sigma = self.stddev
         eps = _standard_normal(shape, dtype=self.mu.dtype, device=self.mu.device)
-        return self.mu + sigma * eps
+        return self.mean, self.stddev, eps
+
+    def rsample_compute(self, state):
+        mean, stddev, eps = state
+        return mean + stddev * eps
+
+    def rsample(self, sample_shape=torch.Size()):
+        state = self.rsample_state(sample_shape)
+        return self.rsample_compute(state)
 
     def log_prob(self, value):
         if self._validate_args:

@@ -8,6 +8,8 @@ __all__ = [
     'BayesModel',
 
     'BayesLinear',
+    'BayesConv2d',
+    'BayesConv2dFlipout',
     
     'ComplexityCost',
     'complexity_weights',

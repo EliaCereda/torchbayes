@@ -85,10 +85,11 @@ class BayesModel(nn.Module):
 
 
 class BayesParameter(nn.Module):
-    def __init__(self, shape: SizeLike):
+    def __init__(self, shape: SizeLike, rsample_state=False):
         super().__init__()
 
         self.shape = torch.Size(shape)
+        self.rsample_state = rsample_state
 
         self._prior = None
         self._posterior = None
@@ -117,7 +118,11 @@ class BayesParameter(nn.Module):
         assert self.posterior is not None, \
             "The posterior distribution must be initialized before sampling."
 
-        self._sample = self.posterior.rsample()
+        if self.rsample_state:
+            self._sample_state = self.posterior.rsample_state()
+            self._sample = self.posterior.rsample_compute(self._sample_state)
+        else:
+            self._sample = self.posterior.rsample()
 
     def forward(self) -> Tensor:
         # When tracing, sample_() must be called inside forward(), so that the

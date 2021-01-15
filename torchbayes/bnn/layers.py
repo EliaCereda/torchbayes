@@ -1,8 +1,10 @@
+import torch
 from torch import nn
 from torch import Tensor
 from torch.nn import functional as F
 
-from .core import BayesParameter
+from .core import SizeLike, BayesParameter
+from ..distributions import NormalNonSingular
 from ..utils import _pair
 
 
@@ -20,7 +22,6 @@ class BayesLinear(nn.Module):
         import math
         import torch
         from torch.nn import init
-        from torchbayes.distributions import NormalNonSingular
 
         weight_mu = torch.empty(self.weight.shape)
         init.kaiming_uniform_(weight_mu, a=math.sqrt(5))
@@ -68,7 +69,6 @@ class _BayesConvNd(nn.Module):
         import math
         import torch
         from torch.nn import init
-        from torchbayes.distributions import NormalNonSingular
 
         weight_mu = torch.empty(self.weight.shape)
         init.kaiming_uniform_(weight_mu, a=math.sqrt(5))
@@ -108,3 +108,41 @@ class BayesConv2d(_BayesConvNd):
             raise NotImplementedError(
                 "Support for non-zeros padding modes in BayesConv2d has not been implemented yet."
             )
+
+
+class BayesConv2dFlipout(BayesConv2d):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        assert isinstance(self.weight.posterior, NormalNonSingular), \
+            "Only NormalNonSingular posteriors are supported by BayesConv2dFlipout."
+        self.weight.rsample_state = True
+
+    def forward(self, input: Tensor) -> Tensor:
+        if self.padding_mode == 'zeros':
+            batch_size = input.shape[0]
+
+            r = randsign((batch_size, self.out_channels, 1, 1))
+            s = randsign((batch_size, self.in_channels, 1, 1))
+
+            weight_mean, weight_stdev, weight_eps = self.weight._sample_state
+            weight_delta = weight_stdev * weight_eps
+
+            output = F.conv2d(input, weight_mean, self.bias(), self.stride, self.padding)
+            output += F.conv2d(input * s, weight_delta, None, self.stride, self.padding) * r
+
+            return output
+        else:
+            raise NotImplementedError(
+                "Support for non-zeros padding modes in BayesConv2dFlipout has not been implemented yet."
+            )
+
+def randsign(shape: SizeLike):
+    # Sample a Bernoullian with the same shape as the desired output
+    p = torch.tensor(0.5).expand(*shape)
+    out = torch.bernoulli(p)
+
+    # Rescale the Bernoullian values from {0, 1} to {-1, +1}
+    out = 2 * out - 1
+
+    return out
