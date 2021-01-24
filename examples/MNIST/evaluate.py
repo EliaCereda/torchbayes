@@ -42,7 +42,7 @@ def main():
 
     # Must be strict=False because `Metric`s were persistent by default but now
     # they're not anymore. TODO: search for a better way
-    task = Task.load_from_checkpoint(checkpoint_path, map_location=device, strict=False)
+    task = Task.load_from_checkpoint(checkpoint_path, map_location=device, strict=False, log_predictions=True)
     data = MNISTData(args)
 
     logger.watch(task.model, log='all')

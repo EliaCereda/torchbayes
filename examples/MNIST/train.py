@@ -35,6 +35,7 @@ class Task(pl.LightningModule):
         'complexity_weight', 'val_samples', 'prior',
         'sigma',
         'pi', 'sigma1', 'sigma2',
+        'log_predictions'
     ]
 
     @classmethod
@@ -45,6 +46,8 @@ class Task(pl.LightningModule):
                            help='Learning rate (default: %(default)s)')
         group.add_argument('--approach', choices=['traditional', 'bnn'], default='bnn',
                            help='Approach to NN training (default: %(default)s)')
+        group.add_argument('--log_predictions', action='store_true',
+                           help='Log individual predictions (default: %(default)s)')
 
         params, args = parser.parse_known_args(args)
 
@@ -207,25 +210,24 @@ class Task(pl.LightningModule):
             self.val_accuracy.update(preds, targets)
 
         # Log a certain number of predictions to wandb for debugging.
-        # TODO: add a flag to control this
-        # n_images = 8
-        # if batch_idx == 0:
-        #     images = []
-        #     for tensors in take(zip(inputs, targets, preds, entropy), n_images):
-        #         input, target, pred, ent = map(lambda x: x.squeeze().cpu(), tensors)
-        #         caption = f'target: {target}, prediction: {pred}, entropy: {ent:.3f}'
-        #
-        #         correctness_mask = dict(
-        #             mask_data=np.full_like(input, 0 if target == pred else 1),
-        #             class_labels={0: 'correct', 1: 'wrong'}
-        #         )
-        #         masks = {
-        #             'correctness': correctness_mask,
-        #         }
-        #         image = wandb.Image(input, caption=caption, masks=masks)
-        #         images.append(image)
-        #
-        #     self.logger.experiment.log({f'valid/predictions/{ds}': images}, commit=False)
+        if self.hparams.log_predictions:
+            images = []
+            for tensors in zip(inputs, targets, preds, entropy):
+                input, target, pred, ent = map(lambda x: x.squeeze().cpu(), tensors)
+                caption = f'target: {target}, prediction: {pred}, entropy: {ent:.4g}'
+
+                correctness_mask = dict(
+                    mask_data=np.full_like(input, 0 if target == pred else 1),
+                    class_labels={0: 'correct', 1: 'wrong'}
+                )
+                masks = {
+                    'correctness': correctness_mask,
+                }
+                image = wandb.Image(input, caption=caption, masks=masks)
+                images.append((ent, image))
+
+            self.log(f'valid/predictions/{ds}/min_entropy', images, reduce_fx=reduce_predictions(limit=8, mode='min'))
+            self.log(f'valid/predictions/{ds}/max_entropy', images, reduce_fx=reduce_predictions(limit=8, mode='max'))
 
         return loss, complexity, likelihood, entropy
 
@@ -267,6 +269,28 @@ class Task(pl.LightningModule):
         self.model.sample_()
 
         return self.model(inputs)
+
+
+def reduce_predictions(limit, mode):
+    def reduce(outputs):
+        if mode == 'min':
+            reverse = False
+        elif mode == 'max':
+            reverse = True
+        else:
+            raise ValueError(f"Unsupported mode '{mode}'.")
+
+        concat = []
+        for batch in outputs:
+            concat.extend(batch)
+
+        sort = sorted(concat, key=lambda x: x[0], reverse=reverse)
+        out = sort[:limit]
+        out = map(lambda x: x[1], out)
+
+        return list(out)
+
+    return reduce
 
 
 def log_checkpoints(trainer, save=False, log=True):
