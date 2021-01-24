@@ -229,6 +229,8 @@ class Task(pl.LightningModule):
             self.log(f'valid/predictions/{ds}/min_entropy', images, reduce_fx=reduce_predictions(limit=8, mode='min'))
             self.log(f'valid/predictions/{ds}/max_entropy', images, reduce_fx=reduce_predictions(limit=8, mode='max'))
 
+            self.log(f'valid/entropy/{ds}/table', entropy.cpu().numpy(), reduce_fx=np.concatenate)
+
         return loss, complexity, likelihood, entropy
 
     def validation_epoch_end(self, outputs):

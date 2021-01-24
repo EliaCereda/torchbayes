@@ -1,7 +1,10 @@
 from argparse import ArgumentParser
+import matplotlib.pyplot as plt
+import numpy as np
 import pytorch_lightning as pl
 import pytorch_lightning.loggers
 from pytorch_lightning import Trainer
+import sklearn.metrics as m
 import sys
 import torch
 import wandb
@@ -48,10 +51,52 @@ def main():
     logger.watch(task.model, log='all')
     logger.log_hyperparams(data.config)
 
-    try:
-        trainer.validate(task, datamodule=data)
-    except InterruptedError:
-        pass
+    output = trainer.validate(task, datamodule=data)
+
+    entropy_id = output[0]['valid/entropy/mnist/table/dataloader_idx_0']
+    entropy_ood = output[1]['valid/entropy/fashion_mnist/table/dataloader_idx_1']
+
+    ood_entropy_auc(entropy_id, entropy_ood)
+
+
+def ood_entropy_auc(entropy_id, entropy_ood):
+    target_id = np.zeros_like(entropy_id)
+    target_ood = np.ones_like(entropy_ood)
+
+    entropy = np.concatenate([entropy_id, entropy_ood])
+    targets = np.concatenate([target_id, target_ood])
+
+    ax1: plt.Axes
+    ax2: plt.Axes
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8.5, 4.5))
+
+    ax1.hist(entropy_id, 96, alpha=0.8, label="in domain (MNIST)")
+    ax1.hist(entropy_ood, 96, alpha=0.8, label="out-of-domain (Fashion-MNIST)")
+
+    ax1.legend()
+    ax1.grid(True)
+    x0, x1 = ax1.get_xlim()
+    y0, y1 = ax1.get_ylim()
+    ax1.set_aspect((x1 - x0) / (y1 - y0))
+    ax1.set_axisbelow(True)
+    ax1.set_xlabel("Entropy")
+    ax1.set_ylabel("Sample count")
+
+    fpr, tpr, _ = m.roc_curve(targets, entropy)
+    roc_auc = m.auc(fpr, tpr)
+
+    ax2.plot(fpr, tpr, label=f"AUC = {roc_auc:.3f}")
+
+    ax2.legend()
+    ax2.grid(True)
+    ax2.axis('square')
+    ax2.set_title("ROC Curve")
+    ax2.set_xlabel("False Positive Rate (FPR)")
+    ax2.set_ylabel("True Positive Rate (TPR)")
+
+    wandb.log({f'valid/ood_entropy_auc': wandb.Image(fig)})
+    fig.savefig(f'valid/ood_entropy_auc.pdf')
+    plt.close(fig)
 
 
 if __name__ == '__main__':
