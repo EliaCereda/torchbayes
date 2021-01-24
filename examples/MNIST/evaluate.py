@@ -66,22 +66,47 @@ def ood_entropy_auc(entropy_id, entropy_ood):
     entropy = np.concatenate([entropy_id, entropy_ood])
     targets = np.concatenate([target_id, target_ood])
 
-    ax1: plt.Axes
-    ax2: plt.Axes
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8.5, 4.5))
+    fig: plt.Figure = plt.figure(figsize=(9.0, 4.5))
+    gs = plt.GridSpec(1, 2, figure=fig)
+    gs1 = gs[0].subgridspec(2, 1, hspace=0.05)
 
-    ax1.hist(entropy_id, 96, alpha=0.8, label="in domain (MNIST)")
-    ax1.hist(entropy_ood, 96, alpha=0.8, label="out-of-domain (Fashion-MNIST)")
+    ax11: plt.Axes = fig.add_subplot(gs1[0])
+    ax12: plt.Axes = fig.add_subplot(gs1[1])
+    ax2: plt.Axes = fig.add_subplot(gs[1])
 
-    ax1.legend()
-    ax1.grid(True)
-    x0, x1 = ax1.get_xlim()
-    y0, y1 = ax1.get_ylim()
-    ax1.set_aspect((x1 - x0) / (y1 - y0))
-    ax1.set_axisbelow(True)
-    ax1.set_xlabel("Entropy")
-    ax1.set_ylabel("Sample count")
+    for ax in [ax11, ax12]:
+        ax.hist(entropy_id, 96, alpha=0.8, label="in domain (MNIST)")
+        ax.hist(entropy_ood, 96, alpha=0.8, label="out-of-domain (Fashion-MNIST)")
 
+        ax.grid(True)
+        x0, x1 = ax.get_xlim()
+        y0, y1 = ax.get_ylim()
+        # ax.set_aspect((x1 - x0) / (y1 - y0))
+        ax.set_axisbelow(True)
+
+    ax11.legend()
+    ax12.set_xlabel("Entropy")
+    ax12.set_ylabel("Sample count")
+
+    # zoom-in / limit the view to different portions of the data
+    ax11.set_ylim(bottom=80)  # outliers only
+    ax12.set_ylim(0, 20)  # most of the data
+
+    # hide the spines between ax and ax2
+    ax11.spines['bottom'].set_visible(False)
+    ax12.spines['top'].set_visible(False)
+    ax11.xaxis.tick_top()
+    ax11.tick_params(labeltop=False)  # don't put tick labels at the top
+    ax12.xaxis.tick_bottom()
+
+    # Cut-out slanted lines
+    d = .5  # proportion of vertical to horizontal extent of the slanted line
+    kwargs = dict(marker=[(-1, -d), (1, d)], markersize=12,
+                  linestyle="none", color='k', mec='k', mew=1, clip_on=False)
+    ax11.plot([0, 1], [0, 0], transform=ax11.transAxes, **kwargs)
+    ax12.plot([0, 1], [1, 1], transform=ax12.transAxes, **kwargs)
+
+    ## ROC curve
     fpr, tpr, _ = m.roc_curve(targets, entropy)
     roc_auc = m.auc(fpr, tpr)
 
