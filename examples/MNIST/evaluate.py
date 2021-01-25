@@ -1,6 +1,7 @@
 from argparse import ArgumentParser
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 import pytorch_lightning as pl
 import pytorch_lightning.loggers
 from pytorch_lightning import Trainer
@@ -56,6 +57,8 @@ def main():
     entropy_id = output[0]['valid/entropy/mnist/table/dataloader_idx_0']
     entropy_ood = output[1]['valid/entropy/fashion_mnist/table/dataloader_idx_1']
 
+    os.makedirs('valid', exist_ok=True)
+
     ood_entropy_auc(entropy_id, entropy_ood)
 
 
@@ -67,11 +70,11 @@ def ood_entropy_auc(entropy_id, entropy_ood):
     targets = np.concatenate([target_id, target_ood])
 
     fig: plt.Figure = plt.figure(figsize=(9.0, 4.5))
-    gs = plt.GridSpec(1, 2, figure=fig)
-    gs1 = gs[0].subgridspec(2, 1, hspace=0.05)
+    gs = plt.GridSpec(1, 2, wspace=0.3, figure=fig)
+    gs1 = gs[0].subgridspec(2, 1, hspace=-0.15)
 
     ax11: plt.Axes = fig.add_subplot(gs1[0])
-    ax12: plt.Axes = fig.add_subplot(gs1[1])
+    ax12: plt.Axes = fig.add_subplot(gs1[1], sharex=ax11)
     ax2: plt.Axes = fig.add_subplot(gs[1])
 
     for ax in [ax11, ax12]:
@@ -79,14 +82,15 @@ def ood_entropy_auc(entropy_id, entropy_ood):
         ax.hist(entropy_ood, 96, alpha=0.8, label="out-of-domain (Fashion-MNIST)")
 
         ax.grid(True)
-        x0, x1 = ax.get_xlim()
-        y0, y1 = ax.get_ylim()
-        ax.set_aspect((x1 - x0) / (y1 - y0))
         ax.set_axisbelow(True)
 
     ax11.legend()
+    # Show y label centered at the bottom of the upper subplot, so it appears at
+    # the center of the overall figure.
+    # Using the upper subplot because it should generally have longer tick
+    # labels, so the y label is positioned correctly.
+    ax11.set_ylabel("Sample count", y=0, horizontalalignment='center')
     ax12.set_xlabel("Entropy")
-    ax12.set_ylabel("Sample count")
 
     # zoom-in / limit the view to different portions of the data
     max_inlier = 800
@@ -94,11 +98,16 @@ def ood_entropy_auc(entropy_id, entropy_ood):
     ax11.set_ylim(bottom=y1 - max_inlier)  # outliers only
     ax12.set_ylim(0, max_inlier)  # most of the data
 
+    for ax in [ax11, ax12]:
+        x0, x1 = ax.get_xlim()
+        y0, y1 = ax.get_ylim()
+        ax.set_aspect(0.5 * (x1 - x0) / (y1 - y0))
+
     # hide the spines between ax and ax2
     ax11.spines['bottom'].set_visible(False)
     ax12.spines['top'].set_visible(False)
-    ax11.xaxis.tick_top()
-    ax11.tick_params(labeltop=False)  # don't put tick labels at the top
+    ax11.xaxis.set_ticks_position('none')
+    ax11.tick_params(labelbottom=False)  # don't put tick labels at the top
     ax12.xaxis.tick_bottom()
 
     # Cut-out slanted lines
