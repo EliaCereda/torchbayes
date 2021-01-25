@@ -133,6 +133,7 @@ def ood_entropy_auc(entropy_id, entropy_ood):
 
     wandb.log({f'valid/ood_entropy_auc': wandb.Image(fig)})
     fig.savefig(f'valid/ood_entropy_auc.pdf')
+    fig.savefig(f'valid/ood_entropy_auc.png', dpi=600)
     plt.close(fig)
 
 

@@ -299,7 +299,7 @@ def reduce_predictions(limit, mode):
             out = sorted(out, key=lambda x: x[0], reverse=reverse)
 
         if shuffle:
-            out = random.shuffle(out)
+            random.shuffle(out)
 
         out = out[:limit]
         out = map(lambda x: x[1], out)
