@@ -10,6 +10,7 @@ import pytorch_lightning.loggers
 from pytorch_lightning import Trainer
 from pytorch_lightning.utilities import AttributeDict
 
+import random
 import re
 
 from sklearn import metrics
@@ -228,6 +229,7 @@ class Task(pl.LightningModule):
 
             self.log(f'valid/predictions/{ds}/min_entropy', images, reduce_fx=reduce_predictions(limit=8, mode='min'))
             self.log(f'valid/predictions/{ds}/max_entropy', images, reduce_fx=reduce_predictions(limit=8, mode='max'))
+            self.log(f'valid/predictions/{ds}/random', images, reduce_fx=reduce_predictions(limit=8, mode='random'))
 
             self.log(f'valid/entropy/{ds}/table', entropy.cpu().numpy(), reduce_fx=np.concatenate)
 
@@ -275,19 +277,31 @@ class Task(pl.LightningModule):
 
 def reduce_predictions(limit, mode):
     def reduce(outputs):
+        shuffle = False
+        sort = False
+        reverse = False
+
         if mode == 'min':
-            reverse = False
+            sort = True
         elif mode == 'max':
+            sort = True
             reverse = True
+        elif mode == 'random':
+            shuffle = True
         else:
             raise ValueError(f"Unsupported mode '{mode}'.")
 
-        concat = []
+        out = []
         for batch in outputs:
-            concat.extend(batch)
+            out.extend(batch)
 
-        sort = sorted(concat, key=lambda x: x[0], reverse=reverse)
-        out = sort[:limit]
+        if sort:
+            out = sorted(out, key=lambda x: x[0], reverse=reverse)
+
+        if shuffle:
+            out = random.shuffle(out)
+
+        out = out[:limit]
         out = map(lambda x: x[1], out)
 
         return list(out)
