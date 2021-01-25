@@ -79,7 +79,7 @@ def ood_entropy_auc(entropy_id, entropy_ood):
 
     for ax in [ax11, ax12]:
         ax.hist(entropy_id, 96, alpha=0.8, label="in domain (MNIST)")
-        ax.hist(entropy_ood, 96, alpha=0.8, label="out-of-domain (Fashion-MNIST)")
+        ax.hist(entropy_ood, 96, alpha=0.8, label="out of domain (Fashion-MNIST)")
 
         ax.grid(True)
         ax.set_axisbelow(True)
@@ -112,7 +112,8 @@ def ood_entropy_auc(entropy_id, entropy_ood):
 
     # Cut-out slanted lines
     d = .5  # proportion of vertical to horizontal extent of the slanted line
-    kwargs = dict(marker=[(-1, -d), (1, d)], markersize=12,
+    axis_width = plt.rcParams['axes.linewidth']
+    kwargs = dict(marker=[(-1, -d), (1, d)], markersize=12, linewidth=axis_width,
                   linestyle="none", color='k', mec='k', mew=1, clip_on=False)
     ax11.plot([0, 1], [0, 0], transform=ax11.transAxes, **kwargs)
     ax12.plot([0, 1], [1, 1], transform=ax12.transAxes, **kwargs)
