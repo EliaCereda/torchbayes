@@ -81,7 +81,7 @@ def ood_entropy_auc(entropy_id, entropy_ood):
         ax.grid(True)
         x0, x1 = ax.get_xlim()
         y0, y1 = ax.get_ylim()
-        # ax.set_aspect((x1 - x0) / (y1 - y0))
+        ax.set_aspect((x1 - x0) / (y1 - y0))
         ax.set_axisbelow(True)
 
     ax11.legend()
@@ -89,8 +89,10 @@ def ood_entropy_auc(entropy_id, entropy_ood):
     ax12.set_ylabel("Sample count")
 
     # zoom-in / limit the view to different portions of the data
-    ax11.set_ylim(bottom=80)  # outliers only
-    ax12.set_ylim(0, 20)  # most of the data
+    max_inlier = 800
+    y0, y1 = ax11.get_ylim()
+    ax11.set_ylim(bottom=y1 - max_inlier)  # outliers only
+    ax12.set_ylim(0, max_inlier)  # most of the data
 
     # hide the spines between ax and ax2
     ax11.spines['bottom'].set_visible(False)
