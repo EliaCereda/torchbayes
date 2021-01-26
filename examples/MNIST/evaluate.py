@@ -144,7 +144,7 @@ def ood_entropy_auc(entropy_id, entropy_ood, broken=False):
 
     ax2.plot(fpr, tpr, label=f"AUC = {roc_auc:.3f}")
 
-    ax2.legend()
+    ax2.legend(loc='lower right')
     ax2.grid(True)
     ax2.axis('square')
     ax2.set_title("ROC Curve")
