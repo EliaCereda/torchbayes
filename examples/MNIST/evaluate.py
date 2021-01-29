@@ -54,13 +54,27 @@ def main():
 
     output = trainer.validate(task, datamodule=data)
 
+    preds_id = output[0]['valid/preds/mnist/table/dataloader_idx_0']
+    targets_id = output[0]['valid/targets/mnist/table/dataloader_idx_0']
     entropy_id = output[0]['valid/entropy/mnist/table/dataloader_idx_0']
     entropy_ood = output[1]['valid/entropy/fashion_mnist/table/dataloader_idx_1']
 
     os.makedirs('valid', exist_ok=True)
 
+    confusion_matrix(preds_id, targets_id, entropy_id)
     ood_entropy_auc(entropy_id, entropy_ood)
 
+def confusion_matrix(preds, targets, entropy):
+    cm = m.confusion_matrix(targets, preds)
+
+    fig, ax = plt.subplots(figsize=(4.5, 4.5))
+
+    m.ConfusionMatrixDisplay(cm).plot(ax=ax)
+
+    wandb.log({f'valid/confusion_matrix': wandb.Image(fig)})
+    fig.savefig(f'valid/confusion_matrix.pdf')
+    fig.savefig(f'valid/confusion_matrix.png', dpi=600)
+    plt.close(fig)
 
 def ood_entropy_auc(entropy_id, entropy_ood, broken=False):
     target_id = np.zeros_like(entropy_id)
