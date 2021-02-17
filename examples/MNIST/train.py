@@ -233,6 +233,7 @@ class Task(pl.LightningModule):
 
             self.log(f'valid/preds/{ds}/table', preds.cpu().numpy(), reduce_fx=np.concatenate)
             self.log(f'valid/targets/{ds}/table', targets.cpu().numpy(), reduce_fx=np.concatenate)
+            self.log(f'valid/likelihood/{ds}/table', likelihood.cpu().numpy(), reduce_fx=np.concatenate)
             self.log(f'valid/entropy/{ds}/table', entropy.cpu().numpy(), reduce_fx=np.concatenate)
 
         return loss, complexity, likelihood, entropy
